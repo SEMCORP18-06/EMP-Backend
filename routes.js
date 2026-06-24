@@ -1791,11 +1791,14 @@ router.post('/enquiries/:id/send-custom-email', authenticateToken, requireActive
       </div>
     `;
 
+    const poNumber = enquiry.poNumber || '-';
+    const fallbackSubject = `Project Confirmation - PO: ${poNumber}`;
+
     const mailOptions = {
       from: fromHeader,
       to: clientEmail.trim(),
       replyTo: peEmail || undefined,
-      subject: subject ? subject.trim() : 'Project Confirmation',
+      subject: subject ? subject.trim() : fallbackSubject,
       html: emailHtml,
       attachments: attachments
     };
