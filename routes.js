@@ -1754,6 +1754,12 @@ router.post('/enquiries/:id/send-custom-email', authenticateToken, requireActive
         </div>
         <hr style="border: 0; border-top: 1px solid #eeeeee;" />
         
+        <!-- Thank You Message -->
+        <div style="margin-top: 20px; color: #111827; font-size: 1.02rem; line-height: 1.6;">
+          Dear ${enquiry.clientName && enquiry.clientName !== '-' ? enquiry.clientName : 'Client'},<br><br>
+          Thank you for confirming your project order with SEMCO Groups. We are pleased to acknowledge your order.
+        </div>
+
         <!-- Section 1: Company, PO, and Project Engineer Details -->
         <div style="background-color: #f9fafb; padding: 16px; border-radius: 10px; border: 1px solid #e5e7eb; margin-top: 20px;">
           <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; line-height: 1.5;">
