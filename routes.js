@@ -1688,7 +1688,7 @@ router.post('/enquiries/:id/send-progress-email', authenticateToken, requireActi
 // POST /api/enquiries/:id/send-custom-email - Send custom email to client with optional attachment
 router.post('/enquiries/:id/send-custom-email', authenticateToken, requireActiveRole, async (req, res) => {
   const { id } = req.params;
-  const { subject, message, attachment } = req.body; // attachment: { filename, data } (base64 string)
+  const { to, subject, message, attachment } = req.body; // attachment: { filename, data } (base64 string)
 
   if (!subject || !subject.trim()) {
     return res.status(400).json({ message: 'Subject is required.' });
@@ -1703,9 +1703,9 @@ router.post('/enquiries/:id/send-custom-email', authenticateToken, requireActive
       return res.status(404).json({ message: 'Enquiry not found' });
     }
 
-    const clientEmail = enquiry.mailId;
+    const clientEmail = (to && to.trim()) ? to.trim() : (enquiry.mailId || '');
     if (!clientEmail || !clientEmail.trim()) {
-      return res.status(400).json({ message: 'Client email recipient (To) is missing on this enquiry.' });
+      return res.status(400).json({ message: 'Client email recipient (To) is required.' });
     }
 
     // Verify access
