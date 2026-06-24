@@ -1750,42 +1750,40 @@ router.post('/enquiries/:id/send-custom-email', authenticateToken, requireActive
       <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; padding: 24px; border: 1px solid #e0e0e0; border-radius: 12px; background: #ffffff;">
         <div style="text-align: center; margin-bottom: 24px;">
           <h2 style="color: #10b981; margin: 0;">SEMCO Groups</h2>
-          <span style="color: #777777; font-size: 0.9rem;">Project Communication</span>
+          <span style="color: #777777; font-size: 0.9rem;">Project Confirmation</span>
         </div>
         <hr style="border: 0; border-top: 1px solid #eeeeee;" />
         
-        <!-- 1. Company Name & PO Number -->
+        <!-- Section 1: Company, PO, and Project Engineer Details -->
         <div style="background-color: #f9fafb; padding: 16px; border-radius: 10px; border: 1px solid #e5e7eb; margin-top: 20px;">
           <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; line-height: 1.5;">
             <tr>
-              <td style="color: #6b7280; font-weight: bold; width: 180px; padding: 4px 0;">Company Name:</td>
+              <td style="color: #6b7280; font-weight: bold; width: 180px; padding: 4px 0; vertical-align: top;">Company Name:</td>
               <td style="color: #111827; padding: 4px 0; font-weight: bold; font-size: 0.95rem;">${enquiry.companyName}</td>
             </tr>
             <tr>
-              <td style="color: #6b7280; font-weight: bold; padding: 4px 0;">PO Number:</td>
+              <td style="color: #6b7280; font-weight: bold; padding: 4px 0; vertical-align: top;">PO Number:</td>
               <td style="color: #111827; padding: 4px 0; font-weight: bold; font-size: 0.95rem;">${enquiry.poNumber || '-'}</td>
             </tr>
+            ${peName && peName !== '-' ? `
+              <tr>
+                <td style="color: #6b7280; font-weight: bold; padding: 4px 0; vertical-align: top;">Project Engineer:</td>
+                <td style="color: #111827; padding: 4px 0;">
+                  <strong style="color: #3b82f6;">${peName}</strong><br />
+                  <span style="font-size: 0.82rem; color: #6b7280;">Email: <a href="mailto:${peEmail || 'aarti.j@semcogroups.com'}" style="color: #3b82f6; text-decoration: none;">${peEmail || '-'}</a></span><br />
+                  ${pePhone ? `<span style="font-size: 0.82rem; color: #6b7280;">Contact: ${pePhone}</span>` : ''}
+                </td>
+              </tr>
+            ` : ''}
           </table>
         </div>
 
-        <!-- 2. Custom Message Content -->
+        <!-- Section 2: Custom Written Text -->
         <div style="margin-top: 24px;">
           <div style="color: #111827; font-size: 1.05rem; line-height: 1.6; white-space: pre-wrap; background: #ffffff; padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px;">
             ${message.replace(/\n/g, '<br>')}
           </div>
         </div>
-
-        <!-- 3. Signature Block -->
-        ${peName && peName !== '-' ? `
-          <div style="margin-top: 36px; border-top: 1px solid #eeeeee; padding-top: 16px; font-size: 0.9rem; color: #4b5563;">
-            <p style="margin: 0; font-weight: bold; color: #111827;">Thanks & Regards,</p>
-            <p style="margin: 4px 0 0 0; font-weight: bold; color: #3b82f6;">${peName}</p>
-            <p style="margin: 2px 0 0 0; color: #6b7280; font-size: 0.85rem;">Project Engineer</p>
-            <p style="margin: 2px 0 0 0; color: #6b7280; font-size: 0.85rem;">Email: <a href="mailto:${peEmail || 'aarti.j@semcogroups.com'}" style="color: #3b82f6; text-decoration: none;">${peEmail || '-'}</a></p>
-            ${pePhone ? `<p style="margin: 2px 0 0 0; color: #6b7280; font-size: 0.85rem;">Contact: ${pePhone}</p>` : ''}
-            <p style="margin: 4px 0 0 0; font-weight: bold; color: #10b981; font-size: 0.85rem;">SEMCO Groups</p>
-          </div>
-        ` : ''}
 
         <p style="color: #999999; font-size: 0.8rem; margin-top: 32px; text-align: center;">
           &copy; 2026 SEMCO Groups. All rights reserved.
@@ -1797,7 +1795,7 @@ router.post('/enquiries/:id/send-custom-email', authenticateToken, requireActive
       from: fromHeader,
       to: clientEmail.trim(),
       replyTo: peEmail || undefined,
-      subject: subject.trim(),
+      subject: subject ? subject.trim() : 'Project Confirmation',
       html: emailHtml,
       attachments: attachments
     };
