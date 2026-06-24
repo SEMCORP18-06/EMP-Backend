@@ -679,11 +679,8 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
       }
     }
 
-    // Detect if status changed to Confirmed
+    // Detect if status changed to Confirmed - Disabled sending confirmation email automatically
     let sendOrderConfirmedEmail = false;
-    if (updateData.currentStatus === 'Confirmed' && existing.currentStatus !== 'Confirmed') {
-      sendOrderConfirmedEmail = true;
-    }
 
     const updatedEnquiry = await Enquiry.findByIdAndUpdate(
       id,
@@ -1685,6 +1682,133 @@ router.post('/enquiries/:id/send-progress-email', authenticateToken, requireActi
   } catch (error) {
     console.error('Error sending progress report email:', error);
     return res.status(500).json({ message: 'Failed to send progress report email', error: error.message });
+  }
+});
+
+// POST /api/enquiries/:id/send-custom-email - Send custom email to client with optional attachment
+router.post('/enquiries/:id/send-custom-email', authenticateToken, requireActiveRole, async (req, res) => {
+  const { id } = req.params;
+  const { subject, message, attachment } = req.body; // attachment: { filename, data } (base64 string)
+
+  if (!subject || !subject.trim()) {
+    return res.status(400).json({ message: 'Subject is required.' });
+  }
+  if (!message || !message.trim()) {
+    return res.status(400).json({ message: 'Message content is required.' });
+  }
+
+  try {
+    const enquiry = await Enquiry.findById(id);
+    if (!enquiry) {
+      return res.status(404).json({ message: 'Enquiry not found' });
+    }
+
+    const clientEmail = enquiry.mailId;
+    if (!clientEmail || !clientEmail.trim()) {
+      return res.status(400).json({ message: 'Client email recipient (To) is missing on this enquiry.' });
+    }
+
+    // Verify access
+    const hasAccess = await userHasEnquiryAccess(req.user, enquiry);
+    if (!hasAccess) {
+      return res.status(403).json({ message: 'Forbidden: You do not have access to this enquiry' });
+    }
+
+    // Resolve Project Engineer details
+    const projectEngineerName = enquiry.projectEngineer || '';
+    let peEmail = '';
+    let pePhone = '';
+    let peName = projectEngineerName;
+    if (projectEngineerName && projectEngineerName !== '-') {
+      try {
+        const peObj = await ProjectEngineer.findOne({
+          name: { $regex: `^${projectEngineerName.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' }
+        });
+        if (peObj) {
+          peEmail = peObj.email || '';
+          pePhone = peObj.contactNumber || '';
+          peName = peObj.name || projectEngineerName;
+        }
+      } catch (peErr) {
+        console.error('Error fetching Project Engineer for custom email:', peErr);
+      }
+    }
+
+    const fromHeader = peEmail 
+      ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
+      : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
+
+    const attachments = [];
+    if (attachment && attachment.data && attachment.filename) {
+      attachments.push({
+        filename: attachment.filename,
+        content: Buffer.from(attachment.data, 'base64')
+      });
+    }
+
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; padding: 24px; border: 1px solid #e0e0e0; border-radius: 12px; background: #ffffff;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h2 style="color: #10b981; margin: 0;">SEMCO Groups</h2>
+          <span style="color: #777777; font-size: 0.9rem;">Project Communication</span>
+        </div>
+        <hr style="border: 0; border-top: 1px solid #eeeeee;" />
+        
+        <!-- 1. Company Name & PO Number -->
+        <div style="background-color: #f9fafb; padding: 16px; border-radius: 10px; border: 1px solid #e5e7eb; margin-top: 20px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; line-height: 1.5;">
+            <tr>
+              <td style="color: #6b7280; font-weight: bold; width: 180px; padding: 4px 0;">Company Name:</td>
+              <td style="color: #111827; padding: 4px 0; font-weight: bold; font-size: 0.95rem;">${enquiry.companyName}</td>
+            </tr>
+            <tr>
+              <td style="color: #6b7280; font-weight: bold; padding: 4px 0;">PO Number:</td>
+              <td style="color: #111827; padding: 4px 0; font-weight: bold; font-size: 0.95rem;">${enquiry.poNumber || '-'}</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- 2. Custom Message Content -->
+        <div style="margin-top: 24px;">
+          <div style="color: #111827; font-size: 1.05rem; line-height: 1.6; white-space: pre-wrap; background: #ffffff; padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px;">
+            ${message.replace(/\n/g, '<br>')}
+          </div>
+        </div>
+
+        <!-- 3. Signature Block -->
+        ${peName && peName !== '-' ? `
+          <div style="margin-top: 36px; border-top: 1px solid #eeeeee; padding-top: 16px; font-size: 0.9rem; color: #4b5563;">
+            <p style="margin: 0; font-weight: bold; color: #111827;">Thanks & Regards,</p>
+            <p style="margin: 4px 0 0 0; font-weight: bold; color: #3b82f6;">${peName}</p>
+            <p style="margin: 2px 0 0 0; color: #6b7280; font-size: 0.85rem;">Project Engineer</p>
+            <p style="margin: 2px 0 0 0; color: #6b7280; font-size: 0.85rem;">Email: <a href="mailto:${peEmail || 'aarti.j@semcogroups.com'}" style="color: #3b82f6; text-decoration: none;">${peEmail || '-'}</a></p>
+            ${pePhone ? `<p style="margin: 2px 0 0 0; color: #6b7280; font-size: 0.85rem;">Contact: ${pePhone}</p>` : ''}
+            <p style="margin: 4px 0 0 0; font-weight: bold; color: #10b981; font-size: 0.85rem;">SEMCO Groups</p>
+          </div>
+        ` : ''}
+
+        <p style="color: #999999; font-size: 0.8rem; margin-top: 32px; text-align: center;">
+          &copy; 2026 SEMCO Groups. All rights reserved.
+        </p>
+      </div>
+    `;
+
+    const mailOptions = {
+      from: fromHeader,
+      to: clientEmail.trim(),
+      replyTo: peEmail || undefined,
+      subject: subject.trim(),
+      html: emailHtml,
+      attachments: attachments
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`[Custom Client Email] Email sent successfully to "${clientEmail}" for PO: "${enquiry.poNumber || '-'}".`);
+
+    return res.json({ message: 'Email sent successfully to the client!' });
+  } catch (error) {
+    console.error('Error sending custom client email:', error);
+    return res.status(500).json({ message: 'Failed to send email to the client', error: error.message });
   }
 });
 
