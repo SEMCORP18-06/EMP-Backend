@@ -1785,6 +1785,22 @@ router.post('/enquiries/:id/send-custom-email', authenticateToken, requireActive
           </div>
         </div>
 
+        <!-- Project Engineer Signature -->
+        <div style="margin-top: 32px; border-top: 1px solid #e5e7eb; padding-top: 16px;">
+          <p style="color: #4b5563; font-size: 0.95rem; margin: 0 0 6px 0;">Best regards,</p>
+          ${peName && peName !== '-' ? `
+            <p style="color: #111827; font-size: 1.05rem; font-weight: bold; margin: 0 0 2px 0;">${peName}</p>
+            <p style="color: #4b5563; font-size: 0.85rem; margin: 0 0 2px 0;">Project Engineer</p>
+            <p style="color: #6b7280; font-size: 0.85rem; margin: 0 0 2px 0;">SEMCO Groups</p>
+            ${peEmail ? `<p style="color: #6b7280; font-size: 0.85rem; margin: 0 0 2px 0;">Email: <a href="mailto:${peEmail}" style="color: #3b82f6; text-decoration: none;">${peEmail}</a></p>` : ''}
+            ${pePhone ? `<p style="color: #6b7280; font-size: 0.85rem; margin: 0;">Contact: ${pePhone}</p>` : ''}
+          ` : `
+            <p style="color: #111827; font-size: 1.05rem; font-weight: bold; margin: 0 0 2px 0;">SEMCO Groups Team</p>
+            <p style="color: #6b7280; font-size: 0.85rem; margin: 0 0 2px 0;">SEMCO Groups</p>
+            <p style="color: #6b7280; font-size: 0.85rem; margin: 0 0 2px 0;">Email: <a href="mailto:aarti.j@semcogroups.com" style="color: #3b82f6; text-decoration: none;">aarti.j@semcogroups.com</a></p>
+          `}
+        </div>
+
         <p style="color: #999999; font-size: 0.8rem; margin-top: 32px; text-align: center;">
           &copy; 2026 SEMCO Groups. All rights reserved.
         </p>
