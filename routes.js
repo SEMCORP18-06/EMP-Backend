@@ -1835,4 +1835,33 @@ router.post('/enquiries/:id/send-custom-email', authenticateToken, requireActive
   }
 });
 
+// TEMPORARY: SMTP diagnostic endpoint — REMOVE after debugging
+router.get('/debug/smtp-test', async (req, res) => {
+  try {
+    console.log('[SMTP Debug] Testing SMTP connection...');
+    console.log('[SMTP Debug] Host:', process.env.SMTP_HOST || 'smtp.office365.com');
+    console.log('[SMTP Debug] Port:', process.env.SMTP_PORT || '587');
+    console.log('[SMTP Debug] User:', process.env.SMTP_USER || 'aarti.j@semcogroups.com');
+    console.log('[SMTP Debug] Pass length:', (process.env.SMTP_PASS || '$emc0rp@2026').length);
+    
+    await transporter.verify();
+    return res.json({ 
+      status: 'SMTP connection verified successfully',
+      host: process.env.SMTP_HOST || 'smtp.office365.com',
+      user: process.env.SMTP_USER || 'aarti.j@semcogroups.com',
+      passLength: (process.env.SMTP_PASS || '$emc0rp@2026').length
+    });
+  } catch (err) {
+    console.error('[SMTP Debug] Error:', err);
+    return res.status(500).json({ 
+      status: 'SMTP connection FAILED',
+      error: err.message,
+      code: err.code,
+      host: process.env.SMTP_HOST || 'smtp.office365.com',
+      user: process.env.SMTP_USER || 'aarti.j@semcogroups.com',
+      passLength: (process.env.SMTP_PASS || '$emc0rp@2026').length
+    });
+  }
+});
+
 export default router;
