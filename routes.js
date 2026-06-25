@@ -86,7 +86,7 @@ const userHasEnquiryAccess = async (user, enquiry) => {
 };
 
 const sendVerificationEmail = async (email, token) => {
-  const backendUrl = process.env.BACKEND_URL || 'https://emp-backend-semcorp.vercel.app';
+  const backendUrl = process.env.BACKEND_URL || 'https://emp-backend-amber.vercel.app';
   const verificationLink = `${backendUrl}/api/auth/verify-email?token=${token}`;
   
   // Output link directly to console for testing/debugging convenience
