@@ -86,7 +86,8 @@ const userHasEnquiryAccess = async (user, enquiry) => {
 };
 
 const sendVerificationEmail = async (email, token) => {
-  const verificationLink = `http://localhost:5000/api/auth/verify-email?token=${token}`;
+  const backendUrl = process.env.BACKEND_URL || 'https://emp-backend-semcorp.vercel.app';
+  const verificationLink = `${backendUrl}/api/auth/verify-email?token=${token}`;
   
   // Output link directly to console for testing/debugging convenience
   console.log('\n----------------------------------------');
@@ -235,14 +236,16 @@ router.post('/auth/register', async (req, res) => {
 // Email verification callback URL
 router.get('/auth/verify-email', async (req, res) => {
   const { token } = req.query;
+  const frontendUrl = process.env.FRONTEND_URL || 'https://semcorpemp.vercel.app';
+
   if (!token) {
-    return res.redirect('http://localhost:5173/?verified=invalid');
+    return res.redirect(`${frontendUrl}/?verified=invalid`);
   }
 
   try {
     const user = await User.findOne({ emailVerificationToken: token });
     if (!user) {
-      return res.redirect('http://localhost:5173/?verified=invalid');
+      return res.redirect(`${frontendUrl}/?verified=invalid`);
     }
 
     // Verify user and clear token
@@ -254,10 +257,10 @@ router.get('/auth/verify-email', async (req, res) => {
       }
     );
 
-    return res.redirect('http://localhost:5173/?verified=success');
+    return res.redirect(`${frontendUrl}/?verified=success`);
   } catch (error) {
     console.error('Email verification error:', error);
-    return res.redirect('http://localhost:5173/?verified=error');
+    return res.redirect(`${frontendUrl}/?verified=error`);
   }
 });
 
