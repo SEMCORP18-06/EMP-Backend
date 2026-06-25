@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
+import dns from 'dns/promises';
 import { dbUser as User, dbEnquiry as Enquiry, dbBinEnquiry as BinEnquiry, dbEquipment as Equipment, dbFpr as Fpr, dbProjectEngineer as ProjectEngineer, cleanDuplicateEnquiries, isDuplicate, normalizeDate } from './db.js';
 import { authenticateToken, requireAdmin, requireActiveRole } from './auth.js';
 
@@ -23,9 +24,25 @@ const mapStatus = (status) => {
 
 const router = express.Router();
 
+// Resolve SMTP Host to single IPv4 address at load time to prevent multiple slow DNS connection retries on blocked networks (like Render)
+let smtpHost = process.env.SMTP_HOST || 'smtp.office365.com';
+let resolvedHost = smtpHost;
+
+if (!/^[0-9.]+$/.test(smtpHost)) {
+  try {
+    const addresses = await dns.resolve4(smtpHost);
+    if (addresses && addresses.length > 0) {
+      resolvedHost = addresses[0];
+      console.log(`[SMTP Config] Resolved host ${smtpHost} to IPv4: ${resolvedHost}`);
+    }
+  } catch (dnsErr) {
+    console.error(`[SMTP Config] Failed to resolve IPv4 address for ${smtpHost}:`, dnsErr.message);
+  }
+}
+
 // SMTP Transporter setup using credentials provided
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.office365.com',
+  host: resolvedHost,
   port: parseInt(process.env.SMTP_PORT || '587'),
   secure: false, // False for port 587 (uses STARTTLS)
   auth: {
@@ -34,7 +51,8 @@ const transporter = nodemailer.createTransport({
   },
   tls: {
     ciphers: 'SSLv3',
-    rejectUnauthorized: false
+    rejectUnauthorized: false,
+    servername: smtpHost
   },
   connectionTimeout: 10000, // 10 seconds
   greetingTimeout: 10000, // 10 seconds
