@@ -1898,4 +1898,172 @@ router.get('/debug/smtp-test', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CRON: Weekly Enquiry Report — triggered every Monday 11 AM IST via Vercel Cron
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/cron/weekly-report', async (req, res) => {
+  // Verify cron secret to prevent unauthorized access
+  const cronSecret = process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization;
+  if (cronSecret && (!authHeader || authHeader !== `Bearer ${cronSecret}`)) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
+  try {
+    // Calculate date range: last 7 days
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Query enquiries created in the last 7 days
+    const enquiries = await Enquiry.find({
+      createdAt: { $gte: oneWeekAgo, $lte: now }
+    }).sort({ createdAt: -1 }).lean();
+
+    if (!enquiries || enquiries.length === 0) {
+      console.log('[Weekly Report] No enquiries found in the last 7 days. Skipping email.');
+      return res.json({ message: 'No enquiries in the last week. Report not sent.' });
+    }
+
+    // Find all Admin users
+    const admins = await User.find({ role: 'Admin', isEmailVerified: true }).lean();
+    if (!admins || admins.length === 0) {
+      console.log('[Weekly Report] No verified Admin users found. Skipping email.');
+      return res.json({ message: 'No Admin users found. Report not sent.' });
+    }
+
+    const adminEmails = admins.map(a => a.username).filter(Boolean);
+    if (adminEmails.length === 0) {
+      return res.json({ message: 'No Admin email addresses found. Report not sent.' });
+    }
+
+    // Generate CSV content
+    const csvHeaders = [
+      'Date',
+      'Quotation Number',
+      'Client Name',
+      'Company Name',
+      'Enquiry Details',
+      'Major Equipments',
+      'Enquiry Source',
+      'FPR',
+      'Mail ID',
+      'Contact Country Code',
+      'Contact Number',
+      'Current Status',
+      'Offer Submitted Date',
+      'PO Number',
+      'Expected Date Of Dispatch',
+      'Project Engineer',
+      'Follow-Up Comments',
+      'Created By',
+      'Created At'
+    ];
+
+    const escapeCSV = (val) => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return '"' + str.replace(/"/g, '""') + '"';
+      }
+      return str;
+    };
+
+    const csvRows = [csvHeaders.join(',')];
+    for (const enq of enquiries) {
+      const row = [
+        enq.date || '',
+        enq.quotationNumber || '',
+        enq.clientName || '',
+        enq.companyName || '',
+        enq.enquiryDetails || '',
+        enq.majorEquipments || '',
+        enq.enquirySource || '',
+        enq.fpr || '',
+        enq.mailId || '',
+        enq.contactCountryCode || '',
+        enq.contactNumber || '',
+        enq.currentStatus || '',
+        enq.offerSubmittedDate || '',
+        enq.poNumber || '',
+        enq.expectedDateOfDispatch || '',
+        enq.projectEngineer || '',
+        enq.followUpComments || '',
+        enq.createdBy || '',
+        enq.createdAt ? new Date(enq.createdAt).toISOString().split('T')[0] : ''
+      ].map(escapeCSV);
+      csvRows.push(row.join(','));
+    }
+
+    const csvContent = csvRows.join('\n');
+
+    // Format date range for email
+    const formatDate = (d) => d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const fromDate = formatDate(oneWeekAgo);
+    const toDate = formatDate(now);
+    const fileName = `Enquiry_Report_${oneWeekAgo.toISOString().split('T')[0]}_to_${now.toISOString().split('T')[0]}.csv`;
+
+    // Build email HTML
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background: #ffffff;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h2 style="color: #1a73e8; margin: 0;">SEMCO Groups</h2>
+          <span style="color: #777777; font-size: 0.9rem;">Enquiry Management Portal</span>
+        </div>
+        <hr style="border: 0; border-top: 1px solid #eeeeee;" />
+        <h3 style="color: #333333; margin-top: 24px;">📊 Weekly Enquiry Report</h3>
+        <p style="color: #555555; font-size: 1rem; line-height: 1.6;">
+          Please find attached the weekly enquiry report for the period <strong>${fromDate}</strong> to <strong>${toDate}</strong>.
+        </p>
+        <div style="background: #f0f4ff; border-radius: 10px; padding: 16px 20px; margin: 20px 0;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="color: #555; font-size: 0.95rem; padding: 6px 0;">Total Enquiries:</td>
+              <td style="color: #1a73e8; font-size: 1.1rem; font-weight: 700; text-align: right;">${enquiries.length}</td>
+            </tr>
+            <tr>
+              <td style="color: #555; font-size: 0.95rem; padding: 6px 0;">Period:</td>
+              <td style="color: #333; font-size: 0.95rem; text-align: right;">${fromDate} – ${toDate}</td>
+            </tr>
+          </table>
+        </div>
+        <p style="color: #777777; font-size: 0.85rem; line-height: 1.5;">
+          This is an automated weekly report generated by the SEMCO Enquiry Management Portal. The CSV file is attached to this email.
+        </p>
+        <p style="color: #999999; font-size: 0.8rem; margin-top: 32px; text-align: center;">
+          &copy; 2026 SEMCO Groups. All rights reserved.
+        </p>
+      </div>
+    `;
+
+    // Send email to all admins
+    const mailOptions = {
+      from: `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`,
+      to: adminEmails.join(', '),
+      subject: `Weekly Enquiry Report (${fromDate} – ${toDate})`,
+      html: emailHtml,
+      attachments: [
+        {
+          filename: fileName,
+          content: csvContent,
+          contentType: 'text/csv'
+        }
+      ]
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`[Weekly Report] Report sent successfully to ${adminEmails.length} admin(s): ${adminEmails.join(', ')}`);
+    console.log(`[Weekly Report] ${enquiries.length} enquiries included in the report.`);
+
+    return res.json({
+      message: 'Weekly report sent successfully!',
+      adminCount: adminEmails.length,
+      enquiryCount: enquiries.length,
+      period: `${fromDate} – ${toDate}`
+    });
+  } catch (error) {
+    console.error('[Weekly Report] Error:', error);
+    return res.status(500).json({ message: 'Failed to send weekly report', error: error.message });
+  }
+});
+
 export default router;
