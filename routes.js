@@ -110,10 +110,18 @@ const sendVerificationEmail = async (email, token) => {
         <p style="color: #555555; font-size: 1rem; line-height: 1.6;">
           Thank you for signing up on the SEMCO Enquiry Management Portal. To complete your registration and activate your account, please click the button below to verify your email address:
         </p>
-        <div style="text-align: center; margin: 32px 0;">
-          <a href="${verificationLink}" style="background-color: #3f51b5; color: #ffffff !important; padding: 14px 28px; font-size: 1.05rem; font-weight: bold; text-decoration: none; border-radius: 8px; display: inline-block; box-shadow: 0 4px 10px rgba(63, 81, 181, 0.25);">
-            Verify Email
+        <div style="text-align: center; margin: 40px 0;">
+          <!--[if mso]>
+          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${verificationLink}" style="height:52px;v-text-anchor:middle;width:220px;" arcsize="15%" strokecolor="#1a73e8" fillcolor="#1a73e8">
+            <w:anchorlock/>
+            <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">✉ Verify Email</center>
+          </v:roundrect>
+          <![endif]-->
+          <!--[if !mso]><!-->
+          <a href="${verificationLink}" style="background-color: #1a73e8; color: #ffffff !important; padding: 16px 48px; font-size: 1.1rem; font-weight: 700; text-decoration: none; border-radius: 10px; display: inline-block; letter-spacing: 0.5px; box-shadow: 0 6px 20px rgba(26, 115, 232, 0.35); mso-hide: all;">
+            ✉ Verify Email
           </a>
+          <!--<![endif]-->
         </div>
         <p style="color: #777777; font-size: 0.85rem; line-height: 1.5;">
           If the button doesn't work, you can copy and paste this verification link directly into your browser's address bar:
