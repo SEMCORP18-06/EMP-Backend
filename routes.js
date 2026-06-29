@@ -1448,7 +1448,7 @@ router.delete('/users/:id', authenticateToken, requireAdmin, async (req, res) =>
 // POST /api/enquiries/:id/send-progress-email - Send progress report to client
 router.post('/enquiries/:id/send-progress-email', authenticateToken, requireActiveRole, async (req, res) => {
   const { id } = req.params;
-  const { to, subject, message, includeGantt, images } = req.body;
+  const { to, cc, subject, message, includeGantt, images } = req.body;
 
   if (!to || !to.trim()) {
     return res.status(400).json({ message: 'Client email recipient (To) is required.' });
@@ -1693,6 +1693,7 @@ router.post('/enquiries/:id/send-progress-email', authenticateToken, requireActi
     const mailOptions = {
       from: fromHeader,
       to: to.trim(),
+      cc: cc ? cc.trim() : undefined,
       replyTo: peEmail || undefined,
       subject: subject || `Project Progress Update - PO: ${enquiry.poNumber || '-'}`,
       html: emailHtml,
@@ -1712,7 +1713,7 @@ router.post('/enquiries/:id/send-progress-email', authenticateToken, requireActi
 // POST /api/enquiries/:id/send-custom-email - Send custom email to client with optional attachment
 router.post('/enquiries/:id/send-custom-email', authenticateToken, requireActiveRole, async (req, res) => {
   const { id } = req.params;
-  const { to, subject, message, attachment } = req.body; // attachment: { filename, data } (base64 string)
+  const { to, cc, subject, message, attachment } = req.body; // attachment: { filename, data } (base64 string)
 
   if (!subject || !subject.trim()) {
     return res.status(400).json({ message: 'Subject is required.' });
@@ -1843,6 +1844,7 @@ router.post('/enquiries/:id/send-custom-email', authenticateToken, requireActive
     const mailOptions = {
       from: fromHeader,
       to: clientEmail.trim(),
+      cc: cc ? cc.trim() : undefined,
       replyTo: peEmail || undefined,
       subject: subject ? subject.trim() : fallbackSubject,
       html: emailHtml,
