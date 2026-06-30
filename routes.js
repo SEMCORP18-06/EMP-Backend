@@ -138,6 +138,39 @@ const sendVerificationEmail = async (email, token) => {
   await transporter.sendMail(mailOptions);
 };
 
+const sendResetOtpEmail = async (email, otp) => {
+  const mailOptions = {
+    from: `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`,
+    to: email,
+    subject: 'Password Reset OTP - SEMCO Enquiry Management Portal',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background: #ffffff;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h2 style="color: #1a73e8; margin: 0;">SEMCO Groups</h2>
+          <span style="color: #777777; font-size: 0.9rem;">Enquiry Management Portal</span>
+        </div>
+        <hr style="border: 0; border-top: 1px solid #eeeeee;" />
+        <h3 style="color: #333333; margin-top: 24px;">Password Reset Request</h3>
+        <p style="color: #555555; font-size: 1rem; line-height: 1.6;">
+          You requested to reset your password. Use the following One-Time Password (OTP) to complete the reset. This OTP is valid for <strong>only 2 minutes</strong>:
+        </p>
+        <div style="text-align: center; margin: 32px 0;">
+          <span style="background-color: #f5f5f5; color: #1a73e8; padding: 12px 24px; font-size: 1.8rem; font-weight: bold; border-radius: 8px; letter-spacing: 4px; display: inline-block; border: 1px dashed #1a73e8;">
+            ${otp}
+          </span>
+        </div>
+        <p style="color: #d93025; font-size: 0.85rem; font-weight: bold;">
+          ⚠️ For security, do not share this OTP with anyone. If you did not request a password reset, please ignore this email.
+        </p>
+        <p style="color: #999999; font-size: 0.8rem; margin-top: 32px; text-align: center;">
+          &copy; 2026 SEMCO Groups. All rights reserved.
+        </p>
+      </div>
+    `
+  };
+  await transporter.sendMail(mailOptions);
+};
+
 // Authentication endpoint
 router.post('/auth/login', async (req, res) => {
   const { username, password } = req.body;
@@ -269,6 +302,95 @@ router.get('/auth/verify-email', async (req, res) => {
   } catch (error) {
     console.error('Email verification error:', error);
     return res.redirect(`${frontendUrl}/?verified=error`);
+  }
+});
+
+// Request verification OTP for forgot password
+router.post('/auth/forgot-password', async (req, res) => {
+  const { username } = req.body;
+  if (!username) {
+    return res.status(400).json({ message: 'Username (email) is required.' });
+  }
+
+  try {
+    const user = await User.findOne({ username: username.toLowerCase().trim() });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Generate random 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // Valid for 2 minutes
+    const expires = new Date(Date.now() + 2 * 60 * 1000);
+
+    // Save OTP to user document
+    await User.updateOne(
+      { _id: user._id },
+      {
+        resetOtp: otp,
+        resetOtpExpires: expires
+      }
+    );
+
+    // Send email
+    try {
+      await sendResetOtpEmail(user.username, otp);
+    } catch (emailErr) {
+      console.error('Failed to send reset OTP email:', emailErr);
+      return res.status(500).json({ message: 'Failed to send OTP email.' });
+    }
+
+    return res.json({ message: 'Verification OTP sent to your email.' });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Verify OTP and reset password
+router.post('/auth/reset-password', async (req, res) => {
+  const { username, otp, newPassword } = req.body;
+  if (!username || !otp || !newPassword) {
+    return res.status(400).json({ message: 'All fields (email, OTP, new password) are required.' });
+  }
+
+  // Password complexity check
+  if (newPassword.length < 7 || !/[!@#$%^&*(),.?":{}|<>]/.test(newPassword)) {
+    return res.status(400).json({ 
+      message: 'Password must be at least 7 characters long and contain at least one special character.' 
+    });
+  }
+
+  try {
+    const user = await User.findOne({ username: username.toLowerCase().trim() });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Verify OTP and expiration
+    if (!user.resetOtp || user.resetOtp !== otp.trim()) {
+      return res.status(400).json({ message: 'Invalid OTP' });
+    }
+
+    if (!user.resetOtpExpires || new Date(user.resetOtpExpires).getTime() < Date.now()) {
+      return res.status(400).json({ message: 'OTP has expired (valid for 2 minutes)' });
+    }
+
+    // Hash and update password, clear OTP
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await User.updateOne(
+      { _id: user._id },
+      {
+        password: hashedPassword,
+        resetOtp: null,
+        resetOtpExpires: null
+      }
+    );
+
+    return res.json({ message: 'Password reset successful! You can now log in.' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
   }
 });
 

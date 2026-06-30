@@ -53,7 +53,9 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   role: { type: String, enum: ["Admin", "General", ""], default: "" },
   isEmailVerified: { type: Boolean, default: false },
-  emailVerificationToken: { type: String, default: null }
+  emailVerificationToken: { type: String, default: null },
+  resetOtp: { type: String, default: null },
+  resetOtpExpires: { type: Date, default: null }
 }, { timestamps: true });
 
 const binEnquirySchema = new mongoose.Schema({
