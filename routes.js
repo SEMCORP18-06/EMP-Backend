@@ -1373,8 +1373,8 @@ router.get('/equipments', authenticateToken, requireActiveRole, async (req, res)
   }
 });
 
-// POST /api/equipments - add a new equipment (Admin only)
-router.post('/equipments', authenticateToken, requireAdmin, async (req, res) => {
+// POST /api/equipments - add a new equipment (Admin & General users)
+router.post('/equipments', authenticateToken, requireActiveRole, async (req, res) => {
   const { name } = req.body;
   if (!name || typeof name !== 'string' || !name.trim()) {
     return res.status(400).json({ message: 'Equipment name is required' });
