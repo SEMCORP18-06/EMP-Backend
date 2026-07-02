@@ -856,7 +856,7 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
       const clientName = updateData.clientName || existing.clientName || '-';
       const projectEngineerName = updateData.projectEngineer || existing.projectEngineer || '';
 
-      setImmediate(async () => {
+      try {
         let peEmail = '';
         if (projectEngineerName && projectEngineerName !== '-') {
           try {
@@ -950,7 +950,9 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
             console.error(`[Milestone Email] Failed to send email to ${fprName} (${fprEmail}):`, mailErr);
           }
         }
-      });
+      } catch (err) {
+        console.error('Error sending milestone assignment emails:', err);
+      }
     }
 
     if (clientCompletedMilestones.length > 0) {
@@ -961,119 +963,117 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
       const projectEngineerName = updateData.projectEngineer || existing.projectEngineer || '';
 
       if (clientEmail && clientEmail.trim()) {
-        setImmediate(async () => {
-          try {
-            let peEmail = '';
-            let pePhone = '';
-            let peName = projectEngineerName;
-            if (projectEngineerName && projectEngineerName !== '-') {
-              try {
-                const peObj = await ProjectEngineer.findOne({
-                  name: { $regex: `^${projectEngineerName.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' }
-                });
-                if (peObj) {
-                  peEmail = peObj.email || '';
-                  pePhone = peObj.contactNumber || '';
-                  peName = peObj.name || projectEngineerName;
-                }
-              } catch (peErr) {
-                console.error('Error fetching Project Engineer for client milestone email:', peErr);
+        try {
+          let peEmail = '';
+          let pePhone = '';
+          let peName = projectEngineerName;
+          if (projectEngineerName && projectEngineerName !== '-') {
+            try {
+              const peObj = await ProjectEngineer.findOne({
+                name: { $regex: `^${projectEngineerName.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' }
+              });
+              if (peObj) {
+                peEmail = peObj.email || '';
+                pePhone = peObj.contactNumber || '';
+                peName = peObj.name || projectEngineerName;
               }
+            } catch (peErr) {
+              console.error('Error fetching Project Engineer for client milestone email:', peErr);
             }
-
-            const fromHeader = peEmail 
-              ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
-              : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
-
-            const milestoneListHtml = clientCompletedMilestones.map(m => `
-              <li style="margin: 8px 0; color: #111827;">
-                <strong>${m.name}</strong> (Completed Date: ${m.actualEndDate || new Date().toISOString().split('T')[0]})
-              </li>
-            `).join('');
-
-            const completedPercentage = updatedEnquiry.milestones.reduce((acc, m) => {
-              if (m.status === 'Completed') {
-                return acc + (m.percentage || 0);
-              }
-              return acc;
-            }, 0);
-
-            const mailOptions = {
-              from: fromHeader,
-              to: clientEmail.trim(),
-              replyTo: peEmail || undefined,
-              subject: `Order Status Update: Milestone Completed (PO: ${poNumber})`,
-              html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background: #ffffff;">
-                  <div style="text-align: center; margin-bottom: 24px;">
-                    <h2 style="color: #10b981; margin: 0;">SEMCO Groups</h2>
-                    <span style="color: #777777; font-size: 0.9rem;">Order Progress Update</span>
-                  </div>
-                  <hr style="border: 0; border-top: 1px solid #eeeeee;" />
-                  <h3 style="color: #333333; margin-top: 24px;">Dear ${clientName},</h3>
-                  <p style="color: #555555; font-size: 1rem; line-height: 1.6;">
-                    We are pleased to inform you that the status of your order has changed. The following milestone(s) have been successfully completed:
-                  </p>
-                  
-                  <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 20px 0;">
-                    <p style="margin: 0 0 10px 0; color: #6b7280; font-weight: bold;">Completed Milestone(s):</p>
-                    <ul style="margin: 0; padding-left: 20px;">
-                      ${milestoneListHtml}
-                    </ul>
-                    
-                    <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 16px 0;" />
-                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 8px;">
-                      <tr>
-                        <td style="font-size: 0.95rem; font-weight: bold; color: #4b5563; padding-bottom: 4px;">Overall Completion Progress:</td>
-                        <td style="font-size: 0.95rem; font-weight: 800; color: #10b981; text-align: right; padding-bottom: 4px;">${completedPercentage}%</td>
-                      </tr>
-                    </table>
-                    <div style="width: 100%; background-color: #e5e7eb; border-radius: 8px; height: 16px; overflow: hidden; margin-bottom: 16px; border: 1px solid #d1d5db;">
-                      <div style="width: ${completedPercentage}%; background-color: #10b981; height: 100%; border-radius: 8px;"></div>
-                    </div>
-
-                    <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 12px 0;" />
-                    <table style="width: 100%; border-collapse: collapse;">
-                      <tr>
-                        <td style="padding: 4px 0; color: #6b7280; font-weight: 600; width: 120px;">PO Number:</td>
-                        <td style="padding: 4px 0; color: #111827; font-weight: bold;">${poNumber}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 4px 0; color: #6b7280; font-weight: 600;">Company:</td>
-                        <td style="padding: 4px 0; color: #111827;">${companyName}</td>
-                      </tr>
-                    </table>
-                  </div>
-
-                  <p style="color: #555555; font-size: 1rem; line-height: 1.6;">
-                    If you have any questions or require further details, please do not hesitate to contact us.
-                  </p>
-
-                  ${peName && peName !== '-' ? `
-                    <div style="margin-top: 32px; border-top: 1px solid #eeeeee; padding-top: 16px; font-size: 0.9rem; color: #4b5563;">
-                      <p style="margin: 0; font-weight: bold; color: #111827;">Thanks & Regards,</p>
-                      <p style="margin: 4px 0 0 0; font-weight: bold; color: #3b82f6;">${peName}</p>
-                      <p style="margin: 2px 0 0 0; color: #6b7280; font-size: 0.85rem;">Project Engineer</p>
-                      <p style="margin: 2px 0 0 0; color: #6b7280; font-size: 0.85rem;">Email: <a href="mailto:${peEmail || 'aarti.j@semcogroups.com'}" style="color: #3b82f6; text-decoration: none;">${peEmail || '-'}</a></p>
-                      ${pePhone ? `<p style="margin: 2px 0 0 0; color: #6b7280; font-size: 0.85rem;">Contact: ${pePhone}</p>` : ''}
-                      <p style="margin: 4px 0 0 0; font-weight: bold; color: #10b981; font-size: 0.85rem;">SEMCO Groups</p>
-                    </div>
-                  ` : ''}
-                  
-                  <p style="color: #999999; font-size: 0.8rem; margin-top: 32px; text-align: center;">
-                    Thank you for your business! <br />
-                    &copy; 2026 SEMCO Groups. All rights reserved.
-                  </p>
-                </div>
-              `
-            };
-
-            await transporter.sendMail(mailOptions);
-            console.log(`[Client Email] Order progress update email sent successfully to client: "${clientEmail}" for PO: "${poNumber}".`);
-          } catch (mailErr) {
-            console.error(`[Client Email] Failed to send update email to client "${clientEmail}":`, mailErr);
           }
-        });
+
+          const fromHeader = peEmail 
+            ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
+            : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
+
+          const milestoneListHtml = clientCompletedMilestones.map(m => `
+            <li style="margin: 8px 0; color: #111827;">
+              <strong>${m.name}</strong> (Completed Date: ${m.actualEndDate || new Date().toISOString().split('T')[0]})
+            </li>
+          `).join('');
+
+          const completedPercentage = updatedEnquiry.milestones.reduce((acc, m) => {
+            if (m.status === 'Completed') {
+              return acc + (m.percentage || 0);
+            }
+            return acc;
+          }, 0);
+
+          const mailOptions = {
+            from: fromHeader,
+            to: clientEmail.trim(),
+            replyTo: peEmail || undefined,
+            subject: `Order Status Update: Milestone Completed (PO: ${poNumber})`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background: #ffffff;">
+                <div style="text-align: center; margin-bottom: 24px;">
+                  <h2 style="color: #10b981; margin: 0;">SEMCO Groups</h2>
+                  <span style="color: #777777; font-size: 0.9rem;">Order Progress Update</span>
+                </div>
+                <hr style="border: 0; border-top: 1px solid #eeeeee;" />
+                <h3 style="color: #333333; margin-top: 24px;">Dear ${clientName},</h3>
+                <p style="color: #555555; font-size: 1rem; line-height: 1.6;">
+                  We are pleased to inform you that the status of your order has changed. The following milestone(s) have been successfully completed:
+                </p>
+                
+                <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                  <p style="margin: 0 0 10px 0; color: #6b7280; font-weight: bold;">Completed Milestone(s):</p>
+                  <ul style="margin: 0; padding-left: 20px;">
+                    ${milestoneListHtml}
+                  </ul>
+                  
+                  <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 16px 0;" />
+                  <table style="width: 100%; border-collapse: collapse; margin-bottom: 8px;">
+                    <tr>
+                      <td style="font-size: 0.95rem; font-weight: bold; color: #4b5563; padding-bottom: 4px;">Overall Completion Progress:</td>
+                      <td style="font-size: 0.95rem; font-weight: 800; color: #10b981; text-align: right; padding-bottom: 4px;">${completedPercentage}%</td>
+                    </tr>
+                  </table>
+                  <div style="width: 100%; background-color: #e5e7eb; border-radius: 8px; height: 16px; overflow: hidden; margin-bottom: 16px; border: 1px solid #d1d5db;">
+                    <div style="width: ${completedPercentage}%; background-color: #10b981; height: 100%; border-radius: 8px;"></div>
+                  </div>
+
+                  <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 12px 0;" />
+                  <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                      <td style="padding: 4px 0; color: #6b7280; font-weight: 600; width: 120px;">PO Number:</td>
+                      <td style="padding: 4px 0; color: #111827; font-weight: bold;">${poNumber}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 4px 0; color: #6b7280; font-weight: 600;">Company:</td>
+                      <td style="padding: 4px 0; color: #111827;">${companyName}</td>
+                    </tr>
+                  </table>
+                </div>
+
+                <p style="color: #555555; font-size: 1rem; line-height: 1.6;">
+                  If you have any questions or require further details, please do not hesitate to contact us.
+                </p>
+
+                ${peName && peName !== '-' ? `
+                  <div style="margin-top: 32px; border-top: 1px solid #eeeeee; padding-top: 16px; font-size: 0.9rem; color: #4b5563;">
+                    <p style="margin: 0; font-weight: bold; color: #111827;">Thanks & Regards,</p>
+                    <p style="margin: 4px 0 0 0; font-weight: bold; color: #3b82f6;">${peName}</p>
+                    <p style="margin: 2px 0 0 0; color: #6b7280; font-size: 0.85rem;">Project Engineer</p>
+                    <p style="margin: 2px 0 0 0; color: #6b7280; font-size: 0.85rem;">Email: <a href="mailto:${peEmail || 'aarti.j@semcogroups.com'}" style="color: #3b82f6; text-decoration: none;">${peEmail || '-'}</a></p>
+                    ${pePhone ? `<p style="margin: 2px 0 0 0; color: #6b7280; font-size: 0.85rem;">Contact: ${pePhone}</p>` : ''}
+                    <p style="margin: 4px 0 0 0; font-weight: bold; color: #10b981; font-size: 0.85rem;">SEMCO Groups</p>
+                  </div>
+                ` : ''}
+                
+                <p style="color: #999999; font-size: 0.8rem; margin-top: 32px; text-align: center;">
+                  Thank you for your business! <br />
+                  &copy; 2026 SEMCO Groups. All rights reserved.
+                </p>
+              </div>
+            `
+          };
+
+          await transporter.sendMail(mailOptions);
+          console.log(`[Client Email] Order progress update email sent successfully to client: "${clientEmail}" for PO: "${poNumber}".`);
+        } catch (mailErr) {
+          console.error(`[Client Email] Failed to send update email to client "${clientEmail}":`, mailErr);
+        }
       } else {
         console.log(`[Client Email] No client email (mailId) found on enquiry. Skipping client notification.`);
       }
@@ -1088,92 +1088,90 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
       const expectedDateOfDispatch = updateData.expectedDateOfDispatch || existing.expectedDateOfDispatch || '-';
 
       if (clientEmail && clientEmail.trim()) {
-        setImmediate(async () => {
-          try {
-            const peName = updateData.projectEngineer || existing.projectEngineer || '-';
-            let peEmail = '-';
-            let pePhone = '-';
-            if (peName && peName !== '-') {
-              const peDetails = await ProjectEngineer.findOne({ name: peName });
-              if (peDetails) {
-                peEmail = peDetails.email || '-';
-                pePhone = peDetails.contactNumber || '-';
-              }
+        try {
+          const peName = updateData.projectEngineer || existing.projectEngineer || '-';
+          let peEmail = '-';
+          let pePhone = '-';
+          if (peName && peName !== '-') {
+            const peDetails = await ProjectEngineer.findOne({ name: peName });
+            if (peDetails) {
+              peEmail = peDetails.email || '-';
+              pePhone = peDetails.contactNumber || '-';
             }
-
-            const mailOptions = {
-              from: `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`,
-              to: clientEmail.trim(),
-              subject: `Order Confirmed - PO: ${poNumber}`,
-              html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background: #ffffff;">
-                  <div style="text-align: center; margin-bottom: 24px;">
-                    <h2 style="color: #10b981; margin: 0;">SEMCO Groups</h2>
-                    <span style="color: #777777; font-size: 0.9rem;">Order Confirmation</span>
-                  </div>
-                  <hr style="border: 0; border-top: 1px solid #eeeeee;" />
-                  <h3 style="color: #333333; margin-top: 24px;">Dear ${clientName},</h3>
-                  <p style="color: #555555; font-size: 1rem; line-height: 1.6;">
-                    We are pleased to inform you that your order has been successfully confirmed. Thank you for choosing SEMCO Groups. We appreciate your business and look forward to working with you!
-                  </p>
-                  
-                  <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 20px 0;">
-                    <p style="margin: 0 0 10px 0; color: #10b981; font-weight: bold;">Order Details:</p>
-                    <table style="width: 100%; border-collapse: collapse;">
-                      <tr>
-                        <td style="padding: 4px 0; color: #6b7280; font-weight: 600; width: 140px;">PO Number:</td>
-                        <td style="padding: 4px 0; color: #111827; font-weight: bold;">${poNumber}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 4px 0; color: #6b7280; font-weight: 600;">Company:</td>
-                        <td style="padding: 4px 0; color: #111827;">${companyName}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 4px 0; color: #6b7280; font-weight: 600;">Major Equipments:</td>
-                        <td style="padding: 4px 0; color: #111827;">${majorEquipments}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 4px 0; color: #6b7280; font-weight: 600;">Expected Dispatch Date:</td>
-                        <td style="padding: 4px 0; color: #111827; font-weight: bold;">${expectedDateOfDispatch}</td>
-                      </tr>
-                    </table>
-
-                    <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 12px 0;" />
-                    <p style="margin: 0 0 10px 0; color: #10b981; font-weight: bold;">Assigned Project Engineer:</p>
-                    <table style="width: 100%; border-collapse: collapse;">
-                      <tr>
-                        <td style="padding: 4px 0; color: #6b7280; font-weight: 600; width: 140px;">Name:</td>
-                        <td style="padding: 4px 0; color: #111827; font-weight: bold;">${peName}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 4px 0; color: #6b7280; font-weight: 600;">Email:</td>
-                        <td style="padding: 4px 0; color: #111827;">${peEmail}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 4px 0; color: #6b7280; font-weight: 600;">Contact Number:</td>
-                        <td style="padding: 4px 0; color: #111827;">${pePhone}</td>
-                      </tr>
-                    </table>
-                  </div>
-
-                  <p style="color: #555555; font-size: 1rem; line-height: 1.6;">
-                    Our team will keep you updated as progress is made on the project milestones. If you have any immediate questions, please contact your follow-up representative.
-                  </p>
-                  
-                  <p style="color: #999999; font-size: 0.8rem; margin-top: 32px; text-align: center;">
-                    Thank you once again for your business! <br />
-                    &copy; 2026 SEMCO Groups. All rights reserved.
-                  </p>
-                </div>
-              `
-            };
-
-            await transporter.sendMail(mailOptions);
-            console.log(`[Order Confirmation Email] Confirmation email sent successfully to client: "${clientEmail}" for PO: "${poNumber}".`);
-          } catch (mailErr) {
-            console.error(`[Order Confirmation Email] Failed to send email to client "${clientEmail}":`, mailErr);
           }
-        });
+
+          const mailOptions = {
+            from: `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`,
+            to: clientEmail.trim(),
+            subject: `Order Confirmed - PO: ${poNumber}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background: #ffffff;">
+                <div style="text-align: center; margin-bottom: 24px;">
+                  <h2 style="color: #10b981; margin: 0;">SEMCO Groups</h2>
+                  <span style="color: #777777; font-size: 0.9rem;">Order Confirmation</span>
+                </div>
+                <hr style="border: 0; border-top: 1px solid #eeeeee;" />
+                <h3 style="color: #333333; margin-top: 24px;">Dear ${clientName},</h3>
+                <p style="color: #555555; font-size: 1rem; line-height: 1.6;">
+                  We are pleased to inform you that your order has been successfully confirmed. Thank you for choosing SEMCO Groups. We appreciate your business and look forward to working with you!
+                </p>
+                
+                <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                  <p style="margin: 0 0 10px 0; color: #10b981; font-weight: bold;">Order Details:</p>
+                  <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                      <td style="padding: 4px 0; color: #6b7280; font-weight: 600; width: 140px;">PO Number:</td>
+                      <td style="padding: 4px 0; color: #111827; font-weight: bold;">${poNumber}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 4px 0; color: #6b7280; font-weight: 600;">Company:</td>
+                      <td style="padding: 4px 0; color: #111827;">${companyName}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 4px 0; color: #6b7280; font-weight: 600;">Major Equipments:</td>
+                      <td style="padding: 4px 0; color: #111827;">${majorEquipments}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 4px 0; color: #6b7280; font-weight: 600;">Expected Dispatch Date:</td>
+                      <td style="padding: 4px 0; color: #111827; font-weight: bold;">${expectedDateOfDispatch}</td>
+                    </tr>
+                  </table>
+
+                  <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 12px 0;" />
+                  <p style="margin: 0 0 10px 0; color: #10b981; font-weight: bold;">Assigned Project Engineer:</p>
+                  <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                      <td style="padding: 4px 0; color: #6b7280; font-weight: 600; width: 140px;">Name:</td>
+                      <td style="padding: 4px 0; color: #111827; font-weight: bold;">${peName}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 4px 0; color: #6b7280; font-weight: 600;">Email:</td>
+                      <td style="padding: 4px 0; color: #111827;">${peEmail}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 4px 0; color: #6b7280; font-weight: 600;">Contact Number:</td>
+                      <td style="padding: 4px 0; color: #111827;">${pePhone}</td>
+                    </tr>
+                  </table>
+                </div>
+
+                <p style="color: #555555; font-size: 1rem; line-height: 1.6;">
+                  Our team will keep you updated as progress is made on the project milestones. If you have any immediate questions, please contact your follow-up representative.
+                </p>
+                
+                <p style="color: #999999; font-size: 0.8rem; margin-top: 32px; text-align: center;">
+                  Thank you once again for your business! <br />
+                  &copy; 2026 SEMCO Groups. All rights reserved.
+                </p>
+              </div>
+            `
+          };
+
+          await transporter.sendMail(mailOptions);
+          console.log(`[Order Confirmation Email] Confirmation email sent successfully to client: "${clientEmail}" for PO: "${poNumber}".`);
+        } catch (mailErr) {
+          console.error(`[Order Confirmation Email] Failed to send email to client "${clientEmail}":`, mailErr);
+        }
       } else {
         console.log(`[Order Confirmation Email] No client email (mailId) found on enquiry. Skipping confirmation notification.`);
       }
