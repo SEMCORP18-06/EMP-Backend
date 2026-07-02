@@ -131,6 +131,15 @@ mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 5000 })
   .catch(async (err) => {
     dbError = err.message || String(err);
     console.error('MongoDB connection error details:', err);
+
+    if (process.env.VERCEL) {
+      console.error('Vercel environment detected: Database connection is required. NOT falling back to In-Memory Database.');
+      app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT} (Vercel mode: connection required)`);
+      });
+      return;
+    }
+
     console.warn('MongoDB connection failed. Falling back to In-Memory Database.');
     setUsingMock(true);
     
