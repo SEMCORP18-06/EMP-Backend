@@ -178,8 +178,10 @@ router.post('/auth/login', async (req, res) => {
     return res.status(400).json({ message: 'Username and password are required' });
   }
 
+  const normalizedUsername = username.trim().toLowerCase();
+
   try {
-    const user = await User.findOne({ username });
+    const user = await User.findOne({ username: normalizedUsername });
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
@@ -223,6 +225,8 @@ router.post('/auth/register', async (req, res) => {
     return res.status(400).json({ message: 'Username and password are required' });
   }
 
+  const normalizedUsername = username.trim().toLowerCase();
+
   // Password complexity check
   if (password.length < 7 || !/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
     return res.status(400).json({ 
@@ -231,14 +235,14 @@ router.post('/auth/register', async (req, res) => {
   }
 
   // Email domain check
-  if (!username.toLowerCase().endsWith('@semcogroups.com')) {
+  if (!normalizedUsername.endsWith('@semcogroups.com')) {
     return res.status(400).json({ 
       message: 'Domain Name incorrect' 
     });
   }
 
   try {
-    const userExists = await User.findOne({ username });
+    const userExists = await User.findOne({ username: normalizedUsername });
     if (userExists) {
       return res.status(400).json({ message: 'User already exists' });
     }
@@ -247,7 +251,7 @@ router.post('/auth/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = await User.create({
       name: name || '',
-      username,
+      username: normalizedUsername,
       password: hashedPassword,
       role: 'General', // Keep it General by default
       isEmailVerified: false,
