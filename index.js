@@ -14,7 +14,8 @@ import { setUsingMock, cleanExpiredBinEnquiries, cleanDuplicateEnquiries } from 
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/enquiry_portal';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://enquiry_db_user:NBTrzNkq86zrXV8X@ac-z2c3869-shard-00-00.cw4rhmz.mongodb.net:27017,ac-z2c3869-shard-00-01.cw4rhmz.mongodb.net:27017,ac-z2c3869-shard-00-02.cw4rhmz.mongodb.net:27017/enquiry_portal?ssl=true&replicaSet=atlas-feob8t-shard-0&authSource=admin';
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'super_secret_session_key_enquiry_portal_2026';
 
 // Middleware
 app.use(cors());
