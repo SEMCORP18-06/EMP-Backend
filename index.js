@@ -33,6 +33,7 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+    dbName: mongoose.connection.readyState === 1 ? mongoose.connection.db.databaseName : null,
     error: dbError
   });
 });
