@@ -30,10 +30,12 @@ app.use('/api', apiRouter);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
+  const maskedUri = MONGODB_URI ? MONGODB_URI.replace(/\/\/([^:]+):([^@]+)@/, '//$1:******@') : null;
   res.json({ 
     status: 'OK', 
     database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
     dbName: mongoose.connection.readyState === 1 ? mongoose.connection.db.databaseName : null,
+    uriUsed: maskedUri,
     error: dbError
   });
 });
