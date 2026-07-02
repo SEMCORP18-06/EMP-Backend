@@ -17,6 +17,8 @@ const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://enquiry_db_user:NBTrzNkq86zrXV8X@ac-z2c3869-shard-00-00.cw4rhmz.mongodb.net:27017,ac-z2c3869-shard-00-01.cw4rhmz.mongodb.net:27017,ac-z2c3869-shard-00-02.cw4rhmz.mongodb.net:27017/enquiry_portal?ssl=true&replicaSet=atlas-feob8t-shard-0&authSource=admin';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'super_secret_session_key_enquiry_portal_2026';
 
+let dbError = null;
+
 // Middleware
 app.use(cors());
 app.use(morgan('dev'));
@@ -28,7 +30,12 @@ app.use('/api', apiRouter);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected' });
+  res.json({ 
+    status: 'OK', 
+    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+    uriUsed: MONGODB_URI ? (MONGODB_URI.substring(0, 30) + '...') : null,
+    error: dbError
+  });
 });
 
 // Seed function for Admin & General users
@@ -122,6 +129,7 @@ mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 5000 })
     });
   })
   .catch(async (err) => {
+    dbError = err.message || String(err);
     console.error('MongoDB connection error details:', err);
     console.warn('MongoDB connection failed. Falling back to In-Memory Database.');
     setUsingMock(true);
