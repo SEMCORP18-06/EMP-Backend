@@ -74,6 +74,7 @@ const userHasEnquiryAccess = async (user, enquiry) => {
   if (!user) return false;
   if (user.role === 'Admin') return true;
   if (enquiry.createdBy === user.username) return true;
+  
   if (enquiry.projectEngineer && enquiry.projectEngineer !== '-') {
     const pe = await ProjectEngineer.findOne({
       email: { $regex: `^${user.username.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' }
@@ -82,6 +83,20 @@ const userHasEnquiryAccess = async (user, enquiry) => {
       return true;
     }
   }
+
+  if (enquiry.milestones && Array.isArray(enquiry.milestones) && enquiry.milestones.length > 0) {
+    const fpr = await Fpr.findOne({
+      email: { $regex: `^${user.username.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' }
+    });
+    if (fpr && fpr.name) {
+      const fprNameNormalized = fpr.name.trim().toLowerCase();
+      const hasFprMilestone = enquiry.milestones.some(m => m.fpr && m.fpr.trim().toLowerCase() === fprNameNormalized);
+      if (hasFprMilestone) {
+        return true;
+      }
+    }
+  }
+
   return false;
 };
 
@@ -423,19 +438,26 @@ router.get('/enquiries', authenticateToken, requireActiveRole, async (req, res) 
   try {
     let query = {};
     if (req.user.role === 'General') {
-      const pe = await ProjectEngineer.findOne({
-        email: { $regex: `^${req.user.username.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' }
-      });
+      const emailRegex = { $regex: `^${req.user.username.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' };
+      
+      const [pe, fpr] = await Promise.all([
+        ProjectEngineer.findOne({ email: emailRegex }),
+        Fpr.findOne({ email: emailRegex })
+      ]);
+
+      const conditions = [{ createdBy: req.user.username }];
+      
       if (pe) {
-        query = {
-          $or: [
-            { createdBy: req.user.username },
-            { projectEngineer: pe.name }
-          ]
-        };
-      } else {
-        query = { createdBy: req.user.username };
+        conditions.push({ projectEngineer: pe.name });
       }
+      
+      if (fpr && fpr.name) {
+        conditions.push({ 
+          'milestones.fpr': { $regex: `^${fpr.name.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' } 
+        });
+      }
+
+      query = { $or: conditions };
     }
     const enquiries = await Enquiry.find(query).sort({ createdAt: -1 });
     return res.json(enquiries);
@@ -1232,19 +1254,26 @@ router.get('/bin', authenticateToken, requireActiveRole, async (req, res) => {
   try {
     let query = {};
     if (req.user.role === 'General') {
-      const pe = await ProjectEngineer.findOne({
-        email: { $regex: `^${req.user.username.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' }
-      });
+      const emailRegex = { $regex: `^${req.user.username.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' };
+      
+      const [pe, fpr] = await Promise.all([
+        ProjectEngineer.findOne({ email: emailRegex }),
+        Fpr.findOne({ email: emailRegex })
+      ]);
+
+      const conditions = [{ createdBy: req.user.username }];
+      
       if (pe) {
-        query = {
-          $or: [
-            { createdBy: req.user.username },
-            { projectEngineer: pe.name }
-          ]
-        };
-      } else {
-        query = { createdBy: req.user.username };
+        conditions.push({ projectEngineer: pe.name });
       }
+      
+      if (fpr && fpr.name) {
+        conditions.push({ 
+          'milestones.fpr': { $regex: `^${fpr.name.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' } 
+        });
+      }
+
+      query = { $or: conditions };
     }
     const binEnquiries = await BinEnquiry.find(query).sort({ updatedAt: -1 });
     return res.json(binEnquiries);
@@ -1320,19 +1349,26 @@ router.delete('/bin', authenticateToken, requireActiveRole, async (req, res) => 
   try {
     let query = {};
     if (req.user.role === 'General') {
-      const pe = await ProjectEngineer.findOne({
-        email: { $regex: `^${req.user.username.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' }
-      });
+      const emailRegex = { $regex: `^${req.user.username.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' };
+      
+      const [pe, fpr] = await Promise.all([
+        ProjectEngineer.findOne({ email: emailRegex }),
+        Fpr.findOne({ email: emailRegex })
+      ]);
+
+      const conditions = [{ createdBy: req.user.username }];
+      
       if (pe) {
-        query = {
-          $or: [
-            { createdBy: req.user.username },
-            { projectEngineer: pe.name }
-          ]
-        };
-      } else {
-        query = { createdBy: req.user.username };
+        conditions.push({ projectEngineer: pe.name });
       }
+      
+      if (fpr && fpr.name) {
+        conditions.push({ 
+          'milestones.fpr': { $regex: `^${fpr.name.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' } 
+        });
+      }
+
+      query = { $or: conditions };
     }
     const result = await BinEnquiry.deleteMany(query);
     return res.json({ message: 'All enquiries permanently deleted from bin', deletedCount: result.deletedCount });
