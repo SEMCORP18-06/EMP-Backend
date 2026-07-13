@@ -2065,38 +2065,24 @@ router.get('/debug/smtp-test', async (req, res) => {
 // Helper to generate Excel workbook buffer from enquiries
 const generateExcelBuffer = (enquiries) => {
   const headers = [
-    'Client Name',
+    'Date',
     'Company Name',
     'Enquiry Details',
     'Major Equipments',
     'Enquiry Source',
-    'FPR',
-    'Mail ID',
-    'Contact Country Code',
-    'Contact Number',
     'Current Status',
     'Offer Submitted Date',
-    'PO Number',
-    'Expected Date Of Dispatch',
-    'Project Engineer',
     'Follow-Up Comments'
   ];
 
   const dataRows = enquiries.map(enq => [
-    enq.clientName || '',
+    enq.date || '',
     enq.companyName || '',
     enq.enquiryDetails || '',
     enq.majorEquipments || '',
     enq.enquirySource || '',
-    enq.fpr || '',
-    enq.mailId || '',
-    enq.contactCountryCode || '',
-    enq.contactNumber || '',
     enq.currentStatus || '',
     enq.offerSubmittedDate || '',
-    enq.poNumber || '',
-    enq.expectedDateOfDispatch || '',
-    enq.projectEngineer || '',
     enq.followUpComments || ''
   ]);
 
@@ -2155,29 +2141,22 @@ export const sendWeeklyReportMail = async () => {
   const toDate = formatDate(now);
   const fileName = `Enquiry_Report_${oneWeekAgo.toISOString().split('T')[0]}_to_${now.toISOString().split('T')[0]}.xlsx`;
 
-  // Build tabular format for the 15 yellow fields in the email body
+  // Build tabular format for the 8 yellow fields in the email body
   let tableRowsHtml = '';
   for (const enq of enquiries) {
     tableRowsHtml += `
       <tr style="border-bottom: 1px solid #dddddd;">
-        <td style="padding: 8px 10px; white-space: nowrap;">${enq.clientName || '-'}</td>
+        <td style="padding: 8px 10px; white-space: nowrap;">${enq.date || '-'}</td>
         <td style="padding: 8px 10px; white-space: nowrap;">${enq.companyName || '-'}</td>
         <td style="padding: 8px 10px; min-width: 150px; max-width: 250px; word-wrap: break-word;">${enq.enquiryDetails || '-'}</td>
         <td style="padding: 8px 10px; white-space: nowrap;">${enq.majorEquipments || '-'}</td>
         <td style="padding: 8px 10px; white-space: nowrap;">${enq.enquirySource || '-'}</td>
-        <td style="padding: 8px 10px; white-space: nowrap;">${enq.fpr || '-'}</td>
-        <td style="padding: 8px 10px; white-space: nowrap;">${enq.mailId || '-'}</td>
-        <td style="padding: 8px 10px; white-space: nowrap;">${enq.contactCountryCode || ''}</td>
-        <td style="padding: 8px 10px; white-space: nowrap;">${enq.contactNumber || '-'}</td>
         <td style="padding: 8px 10px; white-space: nowrap;">
           <span style="background: #e3f2fd; color: #0d47a1; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;">
             ${enq.currentStatus || '-'}
           </span>
         </td>
         <td style="padding: 8px 10px; white-space: nowrap;">${enq.offerSubmittedDate || '-'}</td>
-        <td style="padding: 8px 10px; white-space: nowrap;">${enq.poNumber || '-'}</td>
-        <td style="padding: 8px 10px; white-space: nowrap;">${enq.expectedDateOfDispatch || '-'}</td>
-        <td style="padding: 8px 10px; white-space: nowrap;">${enq.projectEngineer || '-'}</td>
         <td style="padding: 8px 10px; min-width: 150px; max-width: 250px; word-wrap: break-word;">${enq.followUpComments || '-'}</td>
       </tr>
     `;
@@ -2188,20 +2167,13 @@ export const sendWeeklyReportMail = async () => {
       <table style="width: 100%; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 0.8rem; text-align: left; background-color: #ffffff;">
         <thead>
           <tr style="background-color: #f8f9fa; border-bottom: 2px solid #dee2e6; color: #495057; font-weight: bold; font-size: 0.82rem;">
-            <th style="padding: 12px 10px; white-space: nowrap;">Client Name</th>
+            <th style="padding: 12px 10px; white-space: nowrap;">Date</th>
             <th style="padding: 12px 10px; white-space: nowrap;">Company Name</th>
             <th style="padding: 12px 10px; white-space: nowrap;">Enquiry Details</th>
             <th style="padding: 12px 10px; white-space: nowrap;">Major Equipments</th>
             <th style="padding: 12px 10px; white-space: nowrap;">Enquiry Source</th>
-            <th style="padding: 12px 10px; white-space: nowrap;">FPR</th>
-            <th style="padding: 12px 10px; white-space: nowrap;">Mail ID</th>
-            <th style="padding: 12px 10px; white-space: nowrap;">Country Code</th>
-            <th style="padding: 12px 10px; white-space: nowrap;">Contact Number</th>
             <th style="padding: 12px 10px; white-space: nowrap;">Current Status</th>
             <th style="padding: 12px 10px; white-space: nowrap;">Offer Date</th>
-            <th style="padding: 12px 10px; white-space: nowrap;">PO Number</th>
-            <th style="padding: 12px 10px; white-space: nowrap;">Dispatch Date</th>
-            <th style="padding: 12px 10px; white-space: nowrap;">Project Engineer</th>
             <th style="padding: 12px 10px; white-space: nowrap;">Follow-Up Comments</th>
           </tr>
         </thead>
