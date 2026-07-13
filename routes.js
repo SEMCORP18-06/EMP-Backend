@@ -2065,8 +2065,6 @@ router.get('/debug/smtp-test', async (req, res) => {
 // Helper to generate Excel workbook buffer from enquiries
 const generateExcelBuffer = (enquiries) => {
   const headers = [
-    'Date',
-    'Quotation Number',
     'Client Name',
     'Company Name',
     'Enquiry Details',
@@ -2081,14 +2079,10 @@ const generateExcelBuffer = (enquiries) => {
     'PO Number',
     'Expected Date Of Dispatch',
     'Project Engineer',
-    'Follow-Up Comments',
-    'Created By',
-    'Created At'
+    'Follow-Up Comments'
   ];
 
   const dataRows = enquiries.map(enq => [
-    enq.date || '',
-    enq.quotationNumber || '',
     enq.clientName || '',
     enq.companyName || '',
     enq.enquiryDetails || '',
@@ -2103,9 +2097,7 @@ const generateExcelBuffer = (enquiries) => {
     enq.poNumber || '',
     enq.expectedDateOfDispatch || '',
     enq.projectEngineer || '',
-    enq.followUpComments || '',
-    enq.createdBy || '',
-    enq.createdAt ? new Date(enq.createdAt).toISOString().split('T')[0] : ''
+    enq.followUpComments || ''
   ]);
 
   const wb = XLSX.utils.book_new();
