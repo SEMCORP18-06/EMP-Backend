@@ -8,9 +8,10 @@ import dns from 'dns';
 
 dns.setDefaultResultOrder('ipv4first');
 
-import apiRouter from './routes.js';
+import apiRouter, { sendWeeklyReportMail } from './routes.js';
 import { User, Equipment, Fpr, ProjectEngineer } from './models.js';
 import { setUsingMock, cleanExpiredBinEnquiries, cleanDuplicateEnquiries } from './db.js';
+import cron from 'node-cron';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -171,6 +172,23 @@ async function seedProjectEngineers() {
   }
 }
 
+// Start automated weekly report cron scheduler
+function startScheduler() {
+  console.log('[Scheduler] Initializing weekly report cron (Every Monday 11:00 AM)...');
+  cron.schedule('0 11 * * 1', async () => {
+    console.log('[Scheduler] Triggering weekly report mail...');
+    try {
+      if (mongoose.connection.readyState !== 1) {
+        await connectToDatabase();
+      }
+      const res = await sendWeeklyReportMail();
+      console.log('[Scheduler] Weekly report status:', res);
+    } catch (cronErr) {
+      console.error('[Scheduler] Error running weekly report cron:', cronErr);
+    }
+  });
+}
+
 // For local development, start the server directly
 if (!process.env.VERCEL) {
   connectToDatabase()
@@ -187,6 +205,8 @@ if (!process.env.VERCEL) {
       // Run duplicate cleanup every 30 seconds
       setInterval(cleanDuplicateEnquiries, 30000);
       
+      startScheduler();
+      
       app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
       });
@@ -199,6 +219,8 @@ if (!process.env.VERCEL) {
       try { await cleanDuplicateEnquiries(); } catch (e) {}
       setInterval(cleanExpiredBinEnquiries, 3600000);
       setInterval(cleanDuplicateEnquiries, 30000);
+      
+      startScheduler();
       
       app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT} (using In-Memory Database fallback)`);
