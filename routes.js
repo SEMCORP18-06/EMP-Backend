@@ -2163,34 +2163,96 @@ export const sendWeeklyReportMail = async () => {
   const toDate = formatDate(now);
   const fileName = `Enquiry_Report_${oneWeekAgo.toISOString().split('T')[0]}_to_${now.toISOString().split('T')[0]}.xlsx`;
 
+  // Build tabular format for the 15 yellow fields in the email body
+  let tableRowsHtml = '';
+  for (const enq of enquiries) {
+    tableRowsHtml += `
+      <tr style="border-bottom: 1px solid #dddddd;">
+        <td style="padding: 8px 10px; white-space: nowrap;">${enq.clientName || '-'}</td>
+        <td style="padding: 8px 10px; white-space: nowrap;">${enq.companyName || '-'}</td>
+        <td style="padding: 8px 10px; min-width: 150px; max-width: 250px; word-wrap: break-word;">${enq.enquiryDetails || '-'}</td>
+        <td style="padding: 8px 10px; white-space: nowrap;">${enq.majorEquipments || '-'}</td>
+        <td style="padding: 8px 10px; white-space: nowrap;">${enq.enquirySource || '-'}</td>
+        <td style="padding: 8px 10px; white-space: nowrap;">${enq.fpr || '-'}</td>
+        <td style="padding: 8px 10px; white-space: nowrap;">${enq.mailId || '-'}</td>
+        <td style="padding: 8px 10px; white-space: nowrap;">${enq.contactCountryCode || ''}</td>
+        <td style="padding: 8px 10px; white-space: nowrap;">${enq.contactNumber || '-'}</td>
+        <td style="padding: 8px 10px; white-space: nowrap;">
+          <span style="background: #e3f2fd; color: #0d47a1; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;">
+            ${enq.currentStatus || '-'}
+          </span>
+        </td>
+        <td style="padding: 8px 10px; white-space: nowrap;">${enq.offerSubmittedDate || '-'}</td>
+        <td style="padding: 8px 10px; white-space: nowrap;">${enq.poNumber || '-'}</td>
+        <td style="padding: 8px 10px; white-space: nowrap;">${enq.expectedDateOfDispatch || '-'}</td>
+        <td style="padding: 8px 10px; white-space: nowrap;">${enq.projectEngineer || '-'}</td>
+        <td style="padding: 8px 10px; min-width: 150px; max-width: 250px; word-wrap: break-word;">${enq.followUpComments || '-'}</td>
+      </tr>
+    `;
+  }
+
+  const tableHtml = `
+    <div style="overflow-x: auto; margin: 20px 0; border: 1px solid #e0e0e0; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+      <table style="width: 100%; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 0.8rem; text-align: left; background-color: #ffffff;">
+        <thead>
+          <tr style="background-color: #f8f9fa; border-bottom: 2px solid #dee2e6; color: #495057; font-weight: bold; font-size: 0.82rem;">
+            <th style="padding: 12px 10px; white-space: nowrap;">Client Name</th>
+            <th style="padding: 12px 10px; white-space: nowrap;">Company Name</th>
+            <th style="padding: 12px 10px; white-space: nowrap;">Enquiry Details</th>
+            <th style="padding: 12px 10px; white-space: nowrap;">Major Equipments</th>
+            <th style="padding: 12px 10px; white-space: nowrap;">Enquiry Source</th>
+            <th style="padding: 12px 10px; white-space: nowrap;">FPR</th>
+            <th style="padding: 12px 10px; white-space: nowrap;">Mail ID</th>
+            <th style="padding: 12px 10px; white-space: nowrap;">Country Code</th>
+            <th style="padding: 12px 10px; white-space: nowrap;">Contact Number</th>
+            <th style="padding: 12px 10px; white-space: nowrap;">Current Status</th>
+            <th style="padding: 12px 10px; white-space: nowrap;">Offer Date</th>
+            <th style="padding: 12px 10px; white-space: nowrap;">PO Number</th>
+            <th style="padding: 12px 10px; white-space: nowrap;">Dispatch Date</th>
+            <th style="padding: 12px 10px; white-space: nowrap;">Project Engineer</th>
+            <th style="padding: 12px 10px; white-space: nowrap;">Follow-Up Comments</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRowsHtml}
+        </tbody>
+      </table>
+    </div>
+  `;
+
   // Build email HTML
   const emailHtml = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background: #ffffff;">
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 24px; border: 1px solid #e0e0e0; border-radius: 12px; background: #ffffff;">
       <div style="text-align: center; margin-bottom: 24px;">
-        <h2 style="color: #1a73e8; margin: 0;">SEMCO Groups</h2>
-        <span style="color: #777777; font-size: 0.9rem;">Enquiry Management Portal</span>
+        <h2 style="color: #1a73e8; margin: 0; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.5px;">SEMCO Groups</h2>
+        <span style="color: #6c757d; font-size: 0.9rem;">Enquiry Management Portal</span>
       </div>
-      <hr style="border: 0; border-top: 1px solid #eeeeee;" />
-      <h3 style="color: #333333; margin-top: 24px;">📊 Weekly Enquiry Report</h3>
-      <p style="color: #555555; font-size: 1rem; line-height: 1.6;">
+      <hr style="border: 0; border-top: 1px solid #e9ecef;" />
+      <h3 style="color: #212529; margin-top: 24px; font-size: 1.2rem; font-weight: 600;">📊 Weekly Enquiry Report</h3>
+      <p style="color: #495057; font-size: 0.95rem; line-height: 1.6;">
         Please find attached the weekly enquiry report for the period <strong>${fromDate}</strong> to <strong>${toDate}</strong>.
       </p>
-      <div style="background: #f0f4ff; border-radius: 10px; padding: 16px 20px; margin: 20px 0;">
-        <table style="width: 100%; border-collapse: collapse;">
+      
+      <div style="background: #f1f3f9; border-radius: 8px; padding: 14px 18px; margin: 20px 0; max-width: 320px; border: 1px solid #e2e5ec;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
           <tr>
-            <td style="color: #555; font-size: 0.95rem; padding: 6px 0;">Total Enquiries:</td>
-            <td style="color: #1a73e8; font-size: 1.1rem; font-weight: 700; text-align: right;">${enquiries.length}</td>
+            <td style="color: #495057; padding: 4px 0;">Total Enquiries:</td>
+            <td style="color: #1a73e8; font-weight: 700; text-align: right;">${enquiries.length}</td>
           </tr>
           <tr>
-            <td style="color: #555; font-size: 0.95rem; padding: 6px 0;">Period:</td>
-            <td style="color: #333; font-size: 0.95rem; text-align: right;">${fromDate} – ${toDate}</td>
+            <td style="color: #495057; padding: 4px 0;">Period:</td>
+            <td style="color: #212529; text-align: right; font-weight: 500;">${fromDate} – ${toDate}</td>
           </tr>
         </table>
       </div>
-      <p style="color: #777777; font-size: 0.85rem; line-height: 1.5;">
-        This is an automated weekly report generated by the SEMCO Enquiry Management Portal. The Excel file is attached to this email.
+
+      <h4 style="color: #212529; margin-top: 28px; margin-bottom: 8px; font-size: 1.05rem; font-weight: 600;">Enquiry Details Preview:</h4>
+      ${tableHtml}
+
+      <p style="color: #6c757d; font-size: 0.85rem; line-height: 1.5; margin-top: 24px;">
+        This is an automated weekly report generated by the SEMCO Enquiry Management Portal. The Excel workbook (.xlsx) is attached to this email.
       </p>
-      <p style="color: #999999; font-size: 0.8rem; margin-top: 32px; text-align: center;">
+      <p style="color: #adb5bd; font-size: 0.8rem; margin-top: 32px; text-align: center; border-top: 1px solid #f1f3f9; padding-top: 16px;">
         &copy; 2026 SEMCO Groups. All rights reserved.
       </p>
     </div>
