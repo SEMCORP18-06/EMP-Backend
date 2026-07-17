@@ -23,6 +23,11 @@ const mapStatus = (status) => {
   return "-";
 };
 
+const cleanSalutations = (name) => {
+  if (!name || typeof name !== 'string') return name;
+  return name.replace(/^(mr|ms|mrs|dr)\.?\s+/i, '').trim();
+};
+
 const router = express.Router();
 
 // Resolve SMTP Host to single IPv4 address at load time to prevent multiple slow DNS connection retries on blocked networks (like Render)
@@ -546,7 +551,7 @@ router.post('/enquiries', authenticateToken, requireActiveRole, async (req, res)
       enquiryDetails,
       majorEquipments,
       enquirySource,
-      fpr,
+      fpr: cleanSalutations(fpr) || '',
       mailId,
       contactCountryCode: normalizedCC,
       contactNumber,
@@ -554,7 +559,7 @@ router.post('/enquiries', authenticateToken, requireActiveRole, async (req, res)
       offerSubmittedDate: normalizedOfferDate,
       poNumber: poNumber || '',
       expectedDateOfDispatch: normalizedExpectedDispatchDate,
-      projectEngineer: projectEngineer || '',
+      projectEngineer: cleanSalutations(projectEngineer) || '',
       followUpComments,
       createdBy: req.user.username
     });
@@ -649,6 +654,7 @@ router.post('/enquiries/import', authenticateToken, requireActiveRole, async (re
       const normalizedExpectedDispatchDate = normalizeDate(item.expectedDateOfDispatch);
       let normalizedMilestones = (item.milestones || []).map(m => ({
         ...m,
+        fpr: cleanSalutations(m.fpr) || '',
         startDate: normalizeDate(m.startDate),
         endDate: normalizeDate(m.endDate),
         actualEndDate: normalizeDate(m.actualEndDate)
@@ -664,7 +670,7 @@ router.post('/enquiries/import', authenticateToken, requireActiveRole, async (re
         enquiryDetails: item.enquiryDetails,
         majorEquipments: item.majorEquipments,
         enquirySource: item.enquirySource,
-        fpr: item.fpr || '',
+        fpr: cleanSalutations(item.fpr) || '',
         mailId: item.mailId,
         contactCountryCode: item.contactCountryCode,
         contactNumber: item.contactNumber,
@@ -672,7 +678,7 @@ router.post('/enquiries/import', authenticateToken, requireActiveRole, async (re
         offerSubmittedDate: normalizedOfferDate,
         poNumber: item.poNumber || '',
         expectedDateOfDispatch: normalizedExpectedDispatchDate,
-        projectEngineer: item.projectEngineer || '',
+        projectEngineer: cleanSalutations(item.projectEngineer) || '',
         followUpComments: item.followUpComments || '',
         milestones: normalizedMilestones,
         createdBy: req.user.username
@@ -715,9 +721,16 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
     if (updateData.expectedDateOfDispatch !== undefined) {
       updateData.expectedDateOfDispatch = normalizeDate(updateData.expectedDateOfDispatch);
     }
+    if (updateData.projectEngineer !== undefined) {
+      updateData.projectEngineer = cleanSalutations(updateData.projectEngineer);
+    }
+    if (updateData.fpr !== undefined) {
+      updateData.fpr = cleanSalutations(updateData.fpr);
+    }
     if (updateData.milestones !== undefined && Array.isArray(updateData.milestones)) {
       updateData.milestones = updateData.milestones.map(m => ({
         ...m,
+        fpr: cleanSalutations(m.fpr) || '',
         startDate: normalizeDate(m.startDate),
         endDate: normalizeDate(m.endDate),
         actualEndDate: normalizeDate(m.actualEndDate)
@@ -1468,7 +1481,7 @@ router.post('/fprs', authenticateToken, requireAdmin, async (req, res) => {
   if (!name || typeof name !== 'string' || !name.trim()) {
     return res.status(400).json({ message: 'FPR name is required' });
   }
-  const trimmedName = name.trim();
+  const trimmedName = cleanSalutations(name.trim());
   const trimmedEmail = email ? email.trim() : '';
 
   try {
@@ -1517,7 +1530,7 @@ router.post('/project-engineers', authenticateToken, requireAdmin, async (req, r
   if (!name || typeof name !== 'string' || !name.trim()) {
     return res.status(400).json({ message: 'Project Engineer name is required' });
   }
-  const trimmedName = name.trim();
+  const trimmedName = cleanSalutations(name.trim());
   const trimmedEmail = email ? email.trim() : '';
   const trimmedContactNumber = contactNumber ? contactNumber.trim() : '';
 
