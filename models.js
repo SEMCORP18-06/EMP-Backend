@@ -98,6 +98,17 @@ const binEnquirySchema = new mongoose.Schema({
       actualEndDate: { type: String, default: "" },
       status: { type: String, enum: ["Pending", "In Progress", "Completed"], default: "Pending" },
       remark: { type: String, default: "" },
+      remarks: {
+        type: [{
+          _id: { type: String, default: () => new mongoose.Types.ObjectId().toString() },
+          text: { type: String, required: true },
+          authorName: { type: String, default: "" },
+          createdBy: { type: String, default: "" },
+          createdAt: { type: String, default: () => new Date().toISOString() },
+          updatedAt: { type: String, default: () => new Date().toISOString() }
+        }],
+        default: []
+      },
       percentage: { type: Number, default: 0 }
     }],
     default: []
