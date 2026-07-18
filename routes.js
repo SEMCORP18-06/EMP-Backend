@@ -733,7 +733,8 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
         fpr: cleanSalutations(m.fpr) || '',
         startDate: normalizeDate(m.startDate),
         endDate: normalizeDate(m.endDate),
-        actualEndDate: normalizeDate(m.actualEndDate)
+        actualEndDate: normalizeDate(m.actualEndDate),
+        remarks: Array.isArray(m.remarks) ? m.remarks : []
       }));
       updateData.milestones = ensureMilestonePercentages(updateData.milestones);
     }
