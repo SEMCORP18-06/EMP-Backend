@@ -1130,19 +1130,30 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
       if (clientEmail && clientEmail.trim()) {
         try {
           const peName = updateData.projectEngineer || existing.projectEngineer || '-';
-          let peEmail = '-';
-          let pePhone = '-';
+          let peEmail = '';
+          let pePhone = '';
           if (peName && peName !== '-') {
-            const peDetails = await ProjectEngineer.findOne({ name: peName });
-            if (peDetails) {
-              peEmail = peDetails.email || '-';
-              pePhone = peDetails.contactNumber || '-';
+            try {
+              const peDetails = await ProjectEngineer.findOne({
+                name: { $regex: `^${peName.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' }
+              });
+              if (peDetails) {
+                peEmail = peDetails.email || '';
+                pePhone = peDetails.contactNumber || '';
+              }
+            } catch (peErr) {
+              console.error('Error fetching Project Engineer for order confirmation email:', peErr);
             }
           }
 
+          const fromHeader = (peEmail && peName && peName !== '-') 
+            ? `"${peName.trim()}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
+            : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
+
           const mailOptions = {
-            from: `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`,
+            from: fromHeader,
             to: clientEmail.trim(),
+            replyTo: peEmail || undefined,
             subject: `Order Confirmed - PO: ${poNumber}`,
             html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background: #ffffff;">
@@ -1186,11 +1197,11 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
                     </tr>
                     <tr>
                       <td style="padding: 4px 0; color: #6b7280; font-weight: 600;">Email:</td>
-                      <td style="padding: 4px 0; color: #111827;">${peEmail}</td>
+                      <td style="padding: 4px 0; color: #111827;">${peEmail || '-'}</td>
                     </tr>
                     <tr>
                       <td style="padding: 4px 0; color: #6b7280; font-weight: 600;">Contact Number:</td>
-                      <td style="padding: 4px 0; color: #111827;">${pePhone}</td>
+                      <td style="padding: 4px 0; color: #111827;">${pePhone || '-'}</td>
                     </tr>
                   </table>
                 </div>
