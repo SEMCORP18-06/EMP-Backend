@@ -65,6 +65,63 @@ const transporter = nodemailer.createTransport({
   socketTimeout: 10000 // 10 seconds
 });
 
+// Helper: Resolve Project Engineer Details (Name, Email, Contact) safely
+async function getProjectEngineerDetails(rawPeName) {
+  if (!rawPeName || rawPeName === '-') return { name: '', email: '', contact: '' };
+  
+  const cleaned = cleanSalutations(rawPeName).trim();
+  if (!cleaned) return { name: '', email: '', contact: '' };
+
+  try {
+    let peObj = await ProjectEngineer.findOne({
+      name: { $regex: `^${cleaned.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' }
+    });
+
+    if (!peObj) {
+      peObj = await ProjectEngineer.findOne({
+        name: { $regex: cleaned.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), $options: 'i' }
+      });
+    }
+
+    if (peObj) {
+      return {
+        name: peObj.name ? peObj.name.trim() : cleaned,
+        email: peObj.email ? peObj.email.trim() : '',
+        contact: peObj.contactNumber ? peObj.contactNumber.trim() : ''
+      };
+    }
+  } catch (err) {
+    console.error('Error finding Project Engineer details:', err);
+  }
+
+  return { name: cleaned, email: '', contact: '' };
+}
+
+// Helper: Resolve FPR Email safely
+async function getFprEmail(rawFprName) {
+  if (!rawFprName || rawFprName === '-') return '';
+  const cleaned = cleanSalutations(rawFprName).trim();
+  if (!cleaned) return '';
+
+  try {
+    let fprObj = await Fpr.findOne({
+      name: { $regex: `^${cleaned.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' }
+    });
+
+    if (!fprObj) {
+      fprObj = await Fpr.findOne({
+        name: { $regex: cleaned.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), $options: 'i' }
+      });
+    }
+
+    if (fprObj && fprObj.email) {
+      return fprObj.email.trim();
+    }
+  } catch (err) {
+    console.error('Error finding FPR email:', err);
+  }
+  return '';
+}
 
 const ensureMilestonePercentages = (milestones) => {
   if (!milestones || milestones.length === 0) return [];
@@ -890,74 +947,92 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
       return res.status(404).json({ message: 'Enquiry not found' });
     }
 
-    if (sendFprEmail === true && milestonesToNotify.length > 0) {
+    if (sendFprEmail === true || milestonesToNotify.length > 0) {
       const poNumber = updateData.poNumber || existing.poNumber || '-';
       const companyName = updateData.companyName || existing.companyName || '-';
       const clientName = updateData.clientName || existing.clientName || '-';
-      const projectEngineerName = updateData.projectEngineer || existing.projectEngineer || '';
+      const rawPeName = updateData.projectEngineer || existing.projectEngineer || '';
+      const peDetails = await getProjectEngineerDetails(rawPeName);
+      const peName = peDetails.name || rawPeName || '';
+      const peEmail = peDetails.email;
+      const pePhone = peDetails.contact;
+
+      const fromHeader = (peEmail && peName && peName !== '-') 
+        ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
+        : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
+
+      const replyToHeader = (peEmail && peName && peName !== '-')
+        ? `"${peName}" <${peEmail}>`
+        : (peEmail ? peEmail : undefined);
+
+      let targetMilestones = milestonesToNotify;
+      if (sendFprEmail === true && targetMilestones.length === 0 && updateData.milestones && Array.isArray(updateData.milestones)) {
+        targetMilestones = updateData.milestones.filter(m => m.fpr && m.fpr.trim() !== '');
+      }
 
       try {
-        let peEmail = '';
-        if (projectEngineerName && projectEngineerName !== '-') {
-          try {
-            const peObj = await ProjectEngineer.findOne({
-              name: { $regex: `^${projectEngineerName.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' }
-            });
-            if (peObj) {
-              peEmail = peObj.email;
-            }
-          } catch (peErr) {
-            console.error('Error fetching Project Engineer details for milestone notification:', peErr);
-          }
-        }
+        for (const m of targetMilestones) {
+          const rawFpr = m.fpr ? m.fpr.trim() : '';
+          if (!rawFpr) continue;
 
-        const fromHeader = peEmail 
-          ? `"${projectEngineerName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
-          : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
-
-        for (const m of milestonesToNotify) {
-          const fprName = m.fpr.trim();
-          const fprEmail = fprMap[fprName.toLowerCase()];
+          const fprEmail = await getFprEmail(rawFpr);
           if (!fprEmail) {
-            console.log(`[Milestone Email] No email registered for FPR: "${fprName}". Skipping notification.`);
+            console.log(`[Milestone Email] No email registered for FPR: "${rawFpr}". Skipping notification.`);
             continue;
           }
 
           try {
             const displayStart = m.startDate || 'Not specified';
             const displayEnd = m.endDate || 'Not specified';
+            const displayStatus = m.status || 'In Progress';
+            const displayProgress = (m.percentage !== undefined && m.percentage !== null) ? `${m.percentage}%` : '-';
+            const displayRemark = m.remark || (m.remarks && m.remarks.length > 0 ? m.remarks[m.remarks.length - 1].text : '-');
 
             const mailOptions = {
               from: fromHeader,
               to: fprEmail,
-              replyTo: peEmail || undefined,
-              subject: `Milestone Assignment: ${m.name} (PO: ${poNumber})`,
+              replyTo: replyToHeader,
+              subject: `Milestone Assignment / Update: ${m.name} - Status: ${displayStatus} (PO: ${poNumber})`,
               html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background: #ffffff;">
                   <div style="text-align: center; margin-bottom: 24px;">
                     <h2 style="color: #10b981; margin: 0;">SEMCO Groups</h2>
-                    <span style="color: #777777; font-size: 0.9rem;">Milestone Assignment Notification</span>
+                    <span style="color: #777777; font-size: 0.9rem;">Milestone Assignment & Status Update</span>
                   </div>
                   <hr style="border: 0; border-top: 1px solid #eeeeee;" />
-                  <h3 style="color: #333333; margin-top: 24px;">Hello ${fprName},</h3>
+                  <h3 style="color: #333333; margin-top: 24px;">Hello ${cleanSalutations(rawFpr)},</h3>
                   <p style="color: #555555; font-size: 1rem; line-height: 1.6;">
-                    You have been assigned a milestone on the Confirmed Enquiry. Please find the assignment details below:
+                    Please find the updated assignment details for your project milestone below:
                   </p>
                   
                   <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 20px 0;">
                     <table style="width: 100%; border-collapse: collapse;">
                       <tr>
-                        <td style="padding: 6px 0; color: #6b7280; font-weight: 600; width: 140px;">Milestone Name:</td>
+                        <td style="padding: 6px 0; color: #6b7280; font-weight: 600; width: 150px;">Milestone Name:</td>
                         <td style="padding: 6px 0; color: #111827; font-weight: bold;">${m.name}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 6px 0; color: #6b7280; font-weight: 600;">Status:</td>
+                        <td style="padding: 6px 0; color: #10b981; font-weight: bold;">${displayStatus}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 6px 0; color: #6b7280; font-weight: 600;">Progress Weightage:</td>
+                        <td style="padding: 6px 0; color: #111827;">${displayProgress}</td>
                       </tr>
                       <tr>
                         <td style="padding: 6px 0; color: #6b7280; font-weight: 600;">Start Date:</td>
                         <td style="padding: 6px 0; color: #111827;">${displayStart}</td>
                       </tr>
                       <tr>
-                        <td style="padding: 6px 0; color: #6b7280; font-weight: 600;">End Date:</td>
+                        <td style="padding: 6px 0; color: #6b7280; font-weight: 600;">Target End Date:</td>
                         <td style="padding: 6px 0; color: #111827;">${displayEnd}</td>
                       </tr>
+                      ${m.actualEndDate ? `
+                        <tr>
+                          <td style="padding: 6px 0; color: #6b7280; font-weight: 600;">Actual Completion Date:</td>
+                          <td style="padding: 6px 0; color: #111827;">${m.actualEndDate}</td>
+                        </tr>
+                      ` : ''}
                       <tr>
                         <td style="padding: 6px 0; color: #6b7280; font-weight: 600;">PO Number:</td>
                         <td style="padding: 6px 0; color: #111827; font-weight: bold;">${poNumber}</td>
@@ -970,11 +1045,30 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
                         <td style="padding: 6px 0; color: #6b7280; font-weight: 600;">Client Name:</td>
                         <td style="padding: 6px 0; color: #111827;">${clientName}</td>
                       </tr>
+                      ${displayRemark && displayRemark !== '-' ? `
+                        <tr>
+                          <td style="padding: 6px 0; color: #6b7280; font-weight: 600; vertical-align: top;">Latest Remark:</td>
+                          <td style="padding: 6px 0; color: #111827; white-space: pre-wrap;">${displayRemark}</td>
+                        </tr>
+                      ` : ''}
                     </table>
                   </div>
 
-                  <p style="color: #555555; font-size: 1rem; line-height: 1.6;">
-                    Please log in to the SEMCO Enquiry Management Portal to update the status and progress of this milestone.
+                  <!-- Assigned Project Engineer Card -->
+                  <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px 18px; margin-top: 24px; color: #166534;">
+                    <p style="margin: 0 0 6px 0; font-weight: bold; font-size: 0.95rem; color: #15803d;">
+                      👷 Assigned Project Engineer
+                    </p>
+                    <p style="margin: 2px 0; font-size: 0.9rem;"><strong>Name:</strong> ${peName || '-'}</p>
+                    ${peEmail ? `<p style="margin: 2px 0; font-size: 0.9rem;"><strong>Email:</strong> <a href="mailto:${peEmail}" style="color: #047857; font-weight: bold; text-decoration: underline;">${peEmail}</a></p>` : ''}
+                    ${pePhone ? `<p style="margin: 2px 0; font-size: 0.9rem;"><strong>Contact:</strong> ${pePhone}</p>` : ''}
+                    <p style="margin: 8px 0 0 0; font-size: 0.82rem; color: #15803d; font-style: italic;">
+                      💡 <i>Note: Replying to this email will send your response directly to <strong>${peName || 'the Project Engineer'}</strong> at <strong>${peEmail || 'their email'}</strong>.</i>
+                    </p>
+                  </div>
+
+                  <p style="color: #555555; font-size: 1rem; line-height: 1.6; margin-top: 20px;">
+                    Please log in to the SEMCO Enquiry Management Portal to view or update milestone details.
                   </p>
                   
                   <p style="color: #999999; font-size: 0.8rem; margin-top: 32px; text-align: center;">
@@ -985,9 +1079,9 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
             };
 
             await transporter.sendMail(mailOptions);
-            console.log(`[Milestone Email] Notification email sent to ${fprName} (${fprEmail}) for milestone "${m.name}".`);
+            console.log(`[Milestone Email] Notification email sent to ${rawFpr} (${fprEmail}) for milestone "${m.name}".`);
           } catch (mailErr) {
-            console.error(`[Milestone Email] Failed to send email to ${fprName} (${fprEmail}):`, mailErr);
+            console.error(`[Milestone Email] Failed to send email to ${rawFpr} (${fprEmail}):`, mailErr);
           }
         }
       } catch (err) {
@@ -1000,31 +1094,22 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
       const poNumber = updateData.poNumber || existing.poNumber || '-';
       const companyName = updateData.companyName || existing.companyName || '-';
       const clientName = updateData.clientName || existing.clientName || 'Client';
-      const projectEngineerName = updateData.projectEngineer || existing.projectEngineer || '';
+      const rawPeName = updateData.projectEngineer || existing.projectEngineer || '';
 
       if (clientEmail && clientEmail.trim()) {
         try {
-          let peEmail = '';
-          let pePhone = '';
-          let peName = projectEngineerName;
-          if (projectEngineerName && projectEngineerName !== '-') {
-            try {
-              const peObj = await ProjectEngineer.findOne({
-                name: { $regex: `^${projectEngineerName.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' }
-              });
-              if (peObj) {
-                peEmail = peObj.email || '';
-                pePhone = peObj.contactNumber || '';
-                peName = peObj.name || projectEngineerName;
-              }
-            } catch (peErr) {
-              console.error('Error fetching Project Engineer for client milestone email:', peErr);
-            }
-          }
+          const peDetails = await getProjectEngineerDetails(rawPeName);
+          const peName = peDetails.name || rawPeName || '';
+          const peEmail = peDetails.email;
+          const pePhone = peDetails.contact;
 
-          const fromHeader = peEmail 
+          const fromHeader = (peEmail && peName && peName !== '-') 
             ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
             : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
+
+          const replyToHeader = (peEmail && peName && peName !== '-')
+            ? `"${peName}" <${peEmail}>`
+            : (peEmail ? peEmail : undefined);
 
           const milestoneListHtml = clientCompletedMilestones.map(m => `
             <li style="margin: 8px 0; color: #111827;">
@@ -1042,7 +1127,7 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
           const mailOptions = {
             from: fromHeader,
             to: clientEmail.trim(),
-            replyTo: peEmail || undefined,
+            replyTo: replyToHeader,
             subject: `Order Status Update: Milestone Completed (PO: ${poNumber})`,
             html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background: #ffffff;">
@@ -1086,20 +1171,22 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
                   </table>
                 </div>
 
+                <!-- Assigned Project Engineer Card -->
+                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px 18px; margin-top: 24px; color: #166534;">
+                  <p style="margin: 0 0 6px 0; font-weight: bold; font-size: 0.95rem; color: #15803d;">
+                    👷 Assigned Project Engineer
+                  </p>
+                  <p style="margin: 2px 0; font-size: 0.9rem;"><strong>Name:</strong> ${peName || '-'}</p>
+                  ${peEmail ? `<p style="margin: 2px 0; font-size: 0.9rem;"><strong>Email:</strong> <a href="mailto:${peEmail}" style="color: #047857; font-weight: bold; text-decoration: underline;">${peEmail}</a></p>` : ''}
+                  ${pePhone ? `<p style="margin: 2px 0; font-size: 0.9rem;"><strong>Contact:</strong> ${pePhone}</p>` : ''}
+                  <p style="margin: 8px 0 0 0; font-size: 0.82rem; color: #15803d; font-style: italic;">
+                    💡 <i>Note: Replying to this email will send your response directly to <strong>${peName || 'the Project Engineer'}</strong> at <strong>${peEmail || 'their email'}</strong>.</i>
+                  </p>
+                </div>
+
                 <p style="color: #555555; font-size: 1rem; line-height: 1.6;">
                   If you have any questions or require further details, please do not hesitate to contact us.
                 </p>
-
-                ${peName && peName !== '-' ? `
-                  <div style="margin-top: 32px; border-top: 1px solid #eeeeee; padding-top: 16px; font-size: 0.9rem; color: #4b5563;">
-                    <p style="margin: 0; font-weight: bold; color: #111827;">Thanks & Regards,</p>
-                    <p style="margin: 4px 0 0 0; font-weight: bold; color: #3b82f6;">${peName}</p>
-                    <p style="margin: 2px 0 0 0; color: #6b7280; font-size: 0.85rem;">Project Engineer</p>
-                    <p style="margin: 2px 0 0 0; color: #6b7280; font-size: 0.85rem;">Email: <a href="mailto:${peEmail || 'aarti.j@semcogroups.com'}" style="color: #3b82f6; text-decoration: none;">${peEmail || '-'}</a></p>
-                    ${pePhone ? `<p style="margin: 2px 0 0 0; color: #6b7280; font-size: 0.85rem;">Contact: ${pePhone}</p>` : ''}
-                    <p style="margin: 4px 0 0 0; font-weight: bold; color: #10b981; font-size: 0.85rem;">SEMCO Groups</p>
-                  </div>
-                ` : ''}
                 
                 <p style="color: #999999; font-size: 0.8rem; margin-top: 32px; text-align: center;">
                   Thank you for your business! <br />
@@ -1129,31 +1216,24 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
 
       if (clientEmail && clientEmail.trim()) {
         try {
-          const peName = updateData.projectEngineer || existing.projectEngineer || '-';
-          let peEmail = '';
-          let pePhone = '';
-          if (peName && peName !== '-') {
-            try {
-              const peDetails = await ProjectEngineer.findOne({
-                name: { $regex: `^${peName.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' }
-              });
-              if (peDetails) {
-                peEmail = peDetails.email || '';
-                pePhone = peDetails.contactNumber || '';
-              }
-            } catch (peErr) {
-              console.error('Error fetching Project Engineer for order confirmation email:', peErr);
-            }
-          }
+          const rawPeName = updateData.projectEngineer || existing.projectEngineer || '-';
+          const peDetails = await getProjectEngineerDetails(rawPeName);
+          const peName = peDetails.name || rawPeName || '-';
+          const peEmail = peDetails.email;
+          const pePhone = peDetails.contact;
 
           const fromHeader = (peEmail && peName && peName !== '-') 
-            ? `"${peName.trim()}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
+            ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
             : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
+
+          const replyToHeader = (peEmail && peName && peName !== '-')
+            ? `"${peName}" <${peEmail}>`
+            : (peEmail ? peEmail : undefined);
 
           const mailOptions = {
             from: fromHeader,
             to: clientEmail.trim(),
-            replyTo: peEmail || undefined,
+            replyTo: replyToHeader,
             subject: `Order Confirmed - PO: ${poNumber}`,
             html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background: #ffffff;">
@@ -1187,27 +1267,23 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
                       <td style="padding: 4px 0; color: #111827; font-weight: bold;">${expectedDateOfDispatch}</td>
                     </tr>
                   </table>
-
-                  <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 12px 0;" />
-                  <p style="margin: 0 0 10px 0; color: #10b981; font-weight: bold;">Assigned Project Engineer:</p>
-                  <table style="width: 100%; border-collapse: collapse;">
-                    <tr>
-                      <td style="padding: 4px 0; color: #6b7280; font-weight: 600; width: 140px;">Name:</td>
-                      <td style="padding: 4px 0; color: #111827; font-weight: bold;">${peName}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 4px 0; color: #6b7280; font-weight: 600;">Email:</td>
-                      <td style="padding: 4px 0; color: #111827;">${peEmail || '-'}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 4px 0; color: #6b7280; font-weight: 600;">Contact Number:</td>
-                      <td style="padding: 4px 0; color: #111827;">${pePhone || '-'}</td>
-                    </tr>
-                  </table>
                 </div>
 
-                <p style="color: #555555; font-size: 1rem; line-height: 1.6;">
-                  Our team will keep you updated as progress is made on the project milestones. If you have any immediate questions, please contact your follow-up representative.
+                <!-- Assigned Project Engineer Card -->
+                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px 18px; margin-top: 24px; color: #166534;">
+                  <p style="margin: 0 0 6px 0; font-weight: bold; font-size: 0.95rem; color: #15803d;">
+                    👷 Assigned Project Engineer
+                  </p>
+                  <p style="margin: 2px 0; font-size: 0.9rem;"><strong>Name:</strong> ${peName || '-'}</p>
+                  ${peEmail ? `<p style="margin: 2px 0; font-size: 0.9rem;"><strong>Email:</strong> <a href="mailto:${peEmail}" style="color: #047857; font-weight: bold; text-decoration: underline;">${peEmail}</a></p>` : ''}
+                  ${pePhone ? `<p style="margin: 2px 0; font-size: 0.9rem;"><strong>Contact:</strong> ${pePhone}</p>` : ''}
+                  <p style="margin: 8px 0 0 0; font-size: 0.82rem; color: #15803d; font-style: italic;">
+                    💡 <i>Note: Replying to this email will send your response directly to <strong>${peName || 'the Project Engineer'}</strong> at <strong>${peEmail || 'their email'}</strong>.</i>
+                  </p>
+                </div>
+
+                <p style="color: #555555; font-size: 1rem; line-height: 1.6; margin-top: 20px;">
+                  Our team will keep you updated as progress is made on the project milestones.
                 </p>
                 
                 <p style="color: #999999; font-size: 0.8rem; margin-top: 32px; text-align: center;">
@@ -1664,28 +1740,19 @@ router.post('/enquiries/:id/send-progress-email', authenticateToken, requireActi
     }
 
     // Resolve Project Engineer details
-    const projectEngineerName = enquiry.projectEngineer || '';
-    let peEmail = '';
-    let pePhone = '';
-    let peName = projectEngineerName;
-    if (projectEngineerName && projectEngineerName !== '-') {
-      try {
-        const peObj = await ProjectEngineer.findOne({
-          name: { $regex: `^${projectEngineerName.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' }
-        });
-        if (peObj) {
-          peEmail = peObj.email || '';
-          pePhone = peObj.contactNumber || '';
-          peName = peObj.name || projectEngineerName;
-        }
-      } catch (peErr) {
-        console.error('Error fetching Project Engineer for progress email:', peErr);
-      }
-    }
+    const rawPeName = enquiry.projectEngineer || '';
+    const peDetails = await getProjectEngineerDetails(rawPeName);
+    const peName = peDetails.name || rawPeName || '';
+    const peEmail = peDetails.email;
+    const pePhone = peDetails.contact;
 
-    const fromHeader = peEmail 
+    const fromHeader = (peEmail && peName && peName !== '-') 
       ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
       : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
+
+    const replyToHeader = (peEmail && peName && peName !== '-')
+      ? `"${peName}" <${peEmail}>`
+      : (peEmail ? peEmail : undefined);
 
     // 1. Prepare HTML Gantt Table if requested
     let ganttHtml = '';
@@ -1937,28 +2004,19 @@ router.post('/enquiries/:id/send-custom-email', authenticateToken, requireActive
     }
 
     // Resolve Project Engineer details
-    const projectEngineerName = enquiry.projectEngineer || '';
-    let peEmail = '';
-    let pePhone = '';
-    let peName = projectEngineerName;
-    if (projectEngineerName && projectEngineerName !== '-') {
-      try {
-        const peObj = await ProjectEngineer.findOne({
-          name: { $regex: `^${projectEngineerName.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' }
-        });
-        if (peObj) {
-          peEmail = peObj.email || '';
-          pePhone = peObj.contactNumber || '';
-          peName = peObj.name || projectEngineerName;
-        }
-      } catch (peErr) {
-        console.error('Error fetching Project Engineer for custom email:', peErr);
-      }
-    }
+    const rawPeName = enquiry.projectEngineer || '';
+    const peDetails = await getProjectEngineerDetails(rawPeName);
+    const peName = peDetails.name || rawPeName || '';
+    const peEmail = peDetails.email;
+    const pePhone = peDetails.contact;
 
-    const fromHeader = peEmail 
+    const fromHeader = (peEmail && peName && peName !== '-') 
       ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
       : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
+
+    const replyToHeader = (peEmail && peName && peName !== '-')
+      ? `"${peName}" <${peEmail}>`
+      : (peEmail ? peEmail : undefined);
 
     const attachments = [];
     if (attachment && attachment.data && attachment.filename) {
@@ -2042,7 +2100,7 @@ router.post('/enquiries/:id/send-custom-email', authenticateToken, requireActive
       from: fromHeader,
       to: clientEmail.trim(),
       cc: cc ? cc.trim() : undefined,
-      replyTo: peEmail || undefined,
+      replyTo: replyToHeader,
       subject: subject ? subject.trim() : fallbackSubject,
       html: emailHtml,
       attachments: attachments
