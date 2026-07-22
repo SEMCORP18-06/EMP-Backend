@@ -13,6 +13,7 @@ const mapStatus = (status) => {
   const clean = status.trim().toLowerCase();
   
   if (clean.includes("costing")) return "Costing";
+  if (clean.includes("revise")) return "Revise Offer";
   if (clean.includes("offer")) return "Offer submitted";
   if (clean.includes("follow-up") || clean.includes("followup") || clean.includes("in progress")) return "Follow-up in progress";
   if (clean.includes("quotation")) return "Quotation Submitted";

@@ -17,6 +17,7 @@ const enquirySchema = new mongoose.Schema({
     enum: [
       "Costing",
       "Offer submitted",
+      "Revise Offer",
       "Follow-up in progress",
       "Quotation Submitted",
       "Negotiation ongoing",
@@ -86,6 +87,7 @@ const binEnquirySchema = new mongoose.Schema({
     enum: [
       "Costing",
       "Offer submitted",
+      "Revise Offer",
       "Follow-up in progress",
       "Quotation Submitted",
       "Negotiation ongoing",
