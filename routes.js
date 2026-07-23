@@ -892,18 +892,6 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
           const subFpr = sub.fpr.trim();
           if (existingFpr !== subFpr) {
             milestonesToNotify.push(sub);
-          } else {
-            const nameChanged = (existingMilestone.name || '').trim() !== (sub.name || '').trim();
-            const startChanged = normalizeDate(existingMilestone.startDate) !== normalizeDate(sub.startDate);
-            const endChanged = normalizeDate(existingMilestone.endDate) !== normalizeDate(sub.endDate);
-            const statusChanged = (existingMilestone.status || '') !== (sub.status || '');
-            const remarkChanged = (existingMilestone.remark || '').trim() !== (sub.remark || '').trim();
-            const actualEndChanged = normalizeDate(existingMilestone.actualEndDate) !== normalizeDate(sub.actualEndDate);
-            const percentageChanged = Number(existingMilestone.percentage || 0) !== Number(sub.percentage || 0);
-
-            if (nameChanged || startChanged || endChanged || statusChanged || remarkChanged || actualEndChanged || percentageChanged) {
-              milestonesToNotify.push(sub);
-            }
           }
         }
       }
