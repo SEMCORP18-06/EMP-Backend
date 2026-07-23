@@ -958,9 +958,11 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
       const peEmail = peDetails.email;
       const pePhone = peDetails.contact;
 
-      const fromHeader = (peName && peName !== '-') 
-        ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
-        : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
+      const fromHeader = (peEmail && peName && peName !== '-') 
+        ? `"${peName}" <${peEmail}>`
+        : ((peName && peName !== '-')
+            ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
+            : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`);
 
       const replyToHeader = (peEmail && peName && peName !== '-')
         ? `"${peName}" <${peEmail}>`
@@ -1109,9 +1111,11 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
           const peEmail = peDetails.email;
           const pePhone = peDetails.contact;
 
-          const fromHeader = (peName && peName !== '-') 
-            ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
-            : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
+          const fromHeader = (peEmail && peName && peName !== '-') 
+            ? `"${peName}" <${peEmail}>`
+            : ((peName && peName !== '-')
+                ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
+                : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`);
 
           const replyToHeader = (peEmail && peName && peName !== '-')
             ? `"${peName}" <${peEmail}>`
@@ -1233,9 +1237,11 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
           const peEmail = peDetails.email;
           const pePhone = peDetails.contact;
 
-          const fromHeader = (peName && peName !== '-') 
-            ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
-            : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
+          const fromHeader = (peEmail && peName && peName !== '-') 
+            ? `"${peName}" <${peEmail}>`
+            : ((peName && peName !== '-')
+                ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
+                : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`);
 
           const replyToHeader = (peEmail && peName && peName !== '-')
             ? `"${peName}" <${peEmail}>`
@@ -1762,9 +1768,11 @@ router.post('/enquiries/:id/send-progress-email', authenticateToken, requireActi
     const peEmail = peDetails.email;
     const pePhone = peDetails.contact;
 
-    const fromHeader = (peName && peName !== '-') 
-      ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
-      : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
+    const fromHeader = (peEmail && peName && peName !== '-') 
+      ? `"${peName}" <${peEmail}>`
+      : ((peName && peName !== '-')
+          ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
+          : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`);
 
     const replyToHeader = (peEmail && peName && peName !== '-')
       ? `"${peName}" <${peEmail}>`
@@ -2026,9 +2034,11 @@ router.post('/enquiries/:id/send-custom-email', authenticateToken, requireActive
     const peEmail = peDetails.email;
     const pePhone = peDetails.contact;
 
-    const fromHeader = (peName && peName !== '-') 
-      ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
-      : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
+    const fromHeader = (peEmail && peName && peName !== '-') 
+      ? `"${peName}" <${peEmail}>`
+      : ((peName && peName !== '-')
+          ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
+          : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`);
 
     const replyToHeader = (peEmail && peName && peName !== '-')
       ? `"${peName}" <${peEmail}>`
