@@ -137,7 +137,8 @@ const ensureMilestonePercentages = (milestones) => {
 const userHasEnquiryAccess = async (user, enquiry) => {
   if (!user) return false;
   if (user.role === 'Admin') return true;
-  if (enquiry.createdBy === user.username) return true;
+  if (enquiry && enquiry.currentStatus === 'Confirmed') return true;
+  if (enquiry && enquiry.createdBy === user.username) return true;
   
   if (enquiry.projectEngineer && enquiry.projectEngineer !== '-') {
     const pe = await ProjectEngineer.findOne({
@@ -509,7 +510,10 @@ router.get('/enquiries', authenticateToken, requireActiveRole, async (req, res) 
         Fpr.findOne({ email: emailRegex })
       ]);
 
-      const conditions = [{ createdBy: req.user.username }];
+      const conditions = [
+        { createdBy: req.user.username },
+        { currentStatus: 'Confirmed' }
+      ];
       
       if (pe) {
         conditions.push({ projectEngineer: pe.name });
@@ -1385,7 +1389,10 @@ router.get('/bin', authenticateToken, requireActiveRole, async (req, res) => {
         Fpr.findOne({ email: emailRegex })
       ]);
 
-      const conditions = [{ createdBy: req.user.username }];
+      const conditions = [
+        { createdBy: req.user.username },
+        { currentStatus: 'Confirmed' }
+      ];
       
       if (pe) {
         conditions.push({ projectEngineer: pe.name });
