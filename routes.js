@@ -954,11 +954,11 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
       const clientName = updateData.clientName || existing.clientName || '-';
       const rawPeName = updateData.projectEngineer || existing.projectEngineer || '';
       const peDetails = await getProjectEngineerDetails(rawPeName);
-      const peName = peDetails.name || rawPeName || '';
+      const peName = cleanSalutations(peDetails.name || rawPeName || '').trim();
       const peEmail = peDetails.email;
       const pePhone = peDetails.contact;
 
-      const fromHeader = (peEmail && peName && peName !== '-') 
+      const fromHeader = (peName && peName !== '-') 
         ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
         : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
 
@@ -1100,11 +1100,11 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
       if (clientEmail && clientEmail.trim()) {
         try {
           const peDetails = await getProjectEngineerDetails(rawPeName);
-          const peName = peDetails.name || rawPeName || '';
+          const peName = cleanSalutations(peDetails.name || rawPeName || '').trim();
           const peEmail = peDetails.email;
           const pePhone = peDetails.contact;
 
-          const fromHeader = (peEmail && peName && peName !== '-') 
+          const fromHeader = (peName && peName !== '-') 
             ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
             : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
 
@@ -1219,11 +1219,11 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
         try {
           const rawPeName = updateData.projectEngineer || existing.projectEngineer || '-';
           const peDetails = await getProjectEngineerDetails(rawPeName);
-          const peName = peDetails.name || rawPeName || '-';
+          const peName = cleanSalutations(peDetails.name || rawPeName || '').trim();
           const peEmail = peDetails.email;
           const pePhone = peDetails.contact;
 
-          const fromHeader = (peEmail && peName && peName !== '-') 
+          const fromHeader = (peName && peName !== '-') 
             ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
             : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
 
@@ -1743,11 +1743,11 @@ router.post('/enquiries/:id/send-progress-email', authenticateToken, requireActi
     // Resolve Project Engineer details
     const rawPeName = enquiry.projectEngineer || '';
     const peDetails = await getProjectEngineerDetails(rawPeName);
-    const peName = peDetails.name || rawPeName || '';
+    const peName = cleanSalutations(peDetails.name || rawPeName || '').trim();
     const peEmail = peDetails.email;
     const pePhone = peDetails.contact;
 
-    const fromHeader = (peEmail && peName && peName !== '-') 
+    const fromHeader = (peName && peName !== '-') 
       ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
       : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
 
@@ -2007,11 +2007,11 @@ router.post('/enquiries/:id/send-custom-email', authenticateToken, requireActive
     // Resolve Project Engineer details
     const rawPeName = enquiry.projectEngineer || '';
     const peDetails = await getProjectEngineerDetails(rawPeName);
-    const peName = peDetails.name || rawPeName || '';
+    const peName = cleanSalutations(peDetails.name || rawPeName || '').trim();
     const peEmail = peDetails.email;
     const pePhone = peDetails.contact;
 
-    const fromHeader = (peEmail && peName && peName !== '-') 
+    const fromHeader = (peName && peName !== '-') 
       ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
       : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`;
 
