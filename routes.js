@@ -993,12 +993,17 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
               from: fromHeader,
               to: fprEmail,
               replyTo: replyToHeader,
-              subject: `Milestone Assignment / Update: ${m.name} - Status: ${displayStatus} (PO: ${poNumber})`,
+              subject: `Milestone Assignment / Update: ${m.name} - Status: ${displayStatus} (PO: ${poNumber})${peName && peName !== '-' ? ` [Project Eng: ${peName}]` : ''}`,
               html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background: #ffffff;">
                   <div style="text-align: center; margin-bottom: 24px;">
                     <h2 style="color: #10b981; margin: 0;">SEMCO Groups</h2>
                     <span style="color: #777777; font-size: 0.9rem;">Milestone Assignment & Status Update</span>
+                    ${peName && peName !== '-' ? `
+                      <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 8px 12px; margin-top: 10px; font-size: 0.88rem; color: #166534; text-align: center;">
+                        <strong>👷 Assigned Project Engineer:</strong> ${peName}
+                      </div>
+                    ` : ''}
                   </div>
                   <hr style="border: 0; border-top: 1px solid #eeeeee;" />
                   <h3 style="color: #333333; margin-top: 24px;">Hello ${cleanSalutations(rawFpr)},</h3>
@@ -1129,12 +1134,17 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
             from: fromHeader,
             to: clientEmail.trim(),
             replyTo: replyToHeader,
-            subject: `Order Status Update: Milestone Completed (PO: ${poNumber})`,
+            subject: `Order Status Update: Milestone Completed (PO: ${poNumber})${peName && peName !== '-' ? ` [Project Eng: ${peName}]` : ''}`,
             html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background: #ffffff;">
                 <div style="text-align: center; margin-bottom: 24px;">
                   <h2 style="color: #10b981; margin: 0;">SEMCO Groups</h2>
                   <span style="color: #777777; font-size: 0.9rem;">Order Progress Update</span>
+                  ${peName && peName !== '-' ? `
+                    <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 8px 12px; margin-top: 10px; font-size: 0.88rem; color: #166534; text-align: center;">
+                      <strong>👷 Assigned Project Engineer:</strong> ${peName}
+                    </div>
+                  ` : ''}
                 </div>
                 <hr style="border: 0; border-top: 1px solid #eeeeee;" />
                 <h3 style="color: #333333; margin-top: 24px;">Dear ${clientName},</h3>
@@ -1235,12 +1245,17 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
             from: fromHeader,
             to: clientEmail.trim(),
             replyTo: replyToHeader,
-            subject: `Order Confirmed - PO: ${poNumber}`,
+            subject: `Order Confirmed - PO: ${poNumber}${peName && peName !== '-' ? ` [Project Eng: ${peName}]` : ''}`,
             html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background: #ffffff;">
                 <div style="text-align: center; margin-bottom: 24px;">
                   <h2 style="color: #10b981; margin: 0;">SEMCO Groups</h2>
                   <span style="color: #777777; font-size: 0.9rem;">Order Confirmation</span>
+                  ${peName && peName !== '-' ? `
+                    <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 8px 12px; margin-top: 10px; font-size: 0.88rem; color: #166534; text-align: center;">
+                      <strong>👷 Assigned Project Engineer:</strong> ${peName}
+                    </div>
+                  ` : ''}
                 </div>
                 <hr style="border: 0; border-top: 1px solid #eeeeee;" />
                 <h3 style="color: #333333; margin-top: 24px;">Dear ${clientName},</h3>
@@ -1960,7 +1975,7 @@ router.post('/enquiries/:id/send-progress-email', authenticateToken, requireActi
       to: to.trim(),
       cc: cc ? cc.trim() : undefined,
       replyTo: peEmail || undefined,
-      subject: subject || `Project Progress Update - PO: ${enquiry.poNumber || '-'}`,
+      subject: subject ? (peName && peName !== '-' && !subject.includes(peName) ? `${subject.trim()} [Project Eng: ${peName}]` : subject.trim()) : `Project Progress Update - PO: ${enquiry.poNumber || '-'}${peName && peName !== '-' ? ` [Project Eng: ${peName}]` : ''}`,
       html: emailHtml,
       attachments: attachments
     };
@@ -2102,7 +2117,7 @@ router.post('/enquiries/:id/send-custom-email', authenticateToken, requireActive
       to: clientEmail.trim(),
       cc: cc ? cc.trim() : undefined,
       replyTo: replyToHeader,
-      subject: subject ? subject.trim() : fallbackSubject,
+      subject: subject ? (peName && peName !== '-' && !subject.includes(peName) ? `${subject.trim()} [Project Eng: ${peName}]` : subject.trim()) : `Project Confirmation - PO: ${poNumber}${peName && peName !== '-' ? ` [Project Eng: ${peName}]` : ''}`,
       html: emailHtml,
       attachments: attachments
     };
