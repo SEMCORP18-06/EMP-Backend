@@ -2370,4 +2370,171 @@ router.get('/cron/weekly-report', async (req, res) => {
   }
 });
 
+// Function to check and send overdue milestone warning emails
+export const checkAndSendOverdueMilestoneWarnings = async () => {
+  try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const today = new Date(todayStr);
+
+    const enquiries = await Enquiry.find({ currentStatus: { $ne: 'Lost' } });
+    const fprsList = await Fpr.find().sort({ name: 1 });
+    const fprMap = {};
+    fprsList.forEach(f => {
+      if (f.name && f.email) {
+        fprMap[f.name.trim().toLowerCase()] = f.email.trim();
+      }
+    });
+
+    let emailsSentCount = 0;
+
+    for (const enq of enquiries) {
+      if (!enq.milestones || enq.milestones.length === 0) continue;
+      let enqModified = false;
+
+      for (let i = 0; i < enq.milestones.length; i++) {
+        const m = enq.milestones[i];
+        if (m.status === 'Completed' || !m.endDate || !m.fpr || !m.fpr.trim()) {
+          continue;
+        }
+
+        const endDateObj = new Date(m.endDate);
+        if (isNaN(endDateObj.getTime())) continue;
+
+        const diffMs = today.getTime() - endDateObj.getTime();
+        const overdueDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+        if (overdueDays <= 0) continue;
+
+        let assignedDays = m.days || 0;
+        if (!assignedDays && m.startDate && m.endDate) {
+          const sDate = new Date(m.startDate);
+          const eDate = new Date(m.endDate);
+          if (!isNaN(sDate.getTime()) && !isNaN(eDate.getTime())) {
+            assignedDays = Math.max(1, Math.round((eDate.getTime() - sDate.getTime()) / (1000 * 60 * 60 * 24)));
+          }
+        }
+        if (!assignedDays || assignedDays < 1) assignedDays = 1;
+
+        const secondWarningThreshold = Math.max(1, Math.round(0.5 * assignedDays));
+        const fprEmail = fprMap[m.fpr.trim().toLowerCase()];
+        if (!fprEmail) continue;
+
+        const rawPeName = enq.projectEngineer || '';
+        const peDetails = await getProjectEngineerDetails(rawPeName);
+        const peName = cleanSalutations(peDetails.name || rawPeName || '').trim();
+        const peEmail = peDetails.email;
+        const pePhone = peDetails.contact;
+
+        const fromHeader = (peEmail && peName && peName !== '-') 
+          ? `"${peName}" <${peEmail}>`
+          : ((peName && peName !== '-')
+              ? `"${peName}" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`
+              : `"SEMCO Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`);
+
+        const projectNo = enq.projectNumber && enq.projectNumber !== '-' ? enq.projectNumber : (enq.poNumber || 'N/A');
+
+        // WARNING 1: Milestone Overdue (overdueDays >= 1)
+        if (overdueDays >= 1 && !m.overdueNotice1Sent) {
+          const subject = `⚠️ [OVERDUE WARNING] Milestone Exceeded Deadline - ${m.name} (Project: ${projectNo})`;
+          const html = `
+            <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 24px;">
+              <div style="background-color: #ef4444; color: #ffffff; padding: 12px 16px; border-radius: 6px 6px 0 0; text-align: center;">
+                <h2 style="margin: 0; font-size: 1.25rem;">⚠️ OVERDUE MILESTONE WARNING</h2>
+              </div>
+              <div style="padding: 20px 0;">
+                <p>Dear <strong>${m.fpr}</strong>,</p>
+                <p>This is an automated warning that your assigned project milestone is now <strong>OVERDUE</strong>.</p>
+                <table style="width: 100%; border-collapse: collapse; margin: 16px 0; background-color: #f8fafc; border-radius: 6px;">
+                  <tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold; width: 40%;">Project No:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${projectNo}</td></tr>
+                  <tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Company Name:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${enq.companyName || '-'}</td></tr>
+                  <tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Client POC:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${enq.clientName || '-'}</td></tr>
+                  <tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Milestone Name:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #ef4444; font-weight: bold;">${m.name}</td></tr>
+                  <tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Planned End Date:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${m.endDate}</td></tr>
+                  <tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Days Overdue:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #ef4444; font-weight: bold;">${overdueDays} day(s)</td></tr>
+                  <tr><td style="padding: 10px; font-weight: bold;">Current Status:</td><td style="padding: 10px;">${m.status}</td></tr>
+                </table>
+                <p>Please update the milestone status or log your progress in the portal as soon as possible.</p>
+                ${peName ? `<p style="margin-top: 20px; font-size: 0.9rem; color: #64748b;">Assigned Project Engineer: <strong>${peName}</strong> ${pePhone ? `(${pePhone})` : ''}</p>` : ''}
+              </div>
+            </div>
+          `;
+
+          await transporter.sendMail({
+            from: fromHeader,
+            to: fprEmail,
+            subject,
+            html
+          });
+          m.overdueNotice1Sent = true;
+          m.overdueNotice1SentAt = new Date();
+          enqModified = true;
+          emailsSentCount++;
+        }
+
+        // WARNING 2: 50% Overdue (overdueDays >= 0.5 * assignedDays)
+        if (overdueDays >= secondWarningThreshold && !m.overdueNotice2Sent) {
+          const subject = `🚨 [CRITICAL 50% OVERDUE NOTICE] Milestone Significantly Overdue - ${m.name} (Project: ${projectNo})`;
+          const html = `
+            <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; border: 2px solid #dc2626; border-radius: 8px; padding: 24px;">
+              <div style="background-color: #dc2626; color: #ffffff; padding: 14px 16px; border-radius: 6px 6px 0 0; text-align: center;">
+                <h2 style="margin: 0; font-size: 1.25rem;">🚨 CRITICAL 50% OVERDUE WARNING</h2>
+              </div>
+              <div style="padding: 20px 0;">
+                <p>Dear <strong>${m.fpr}</strong>,</p>
+                <p style="color: #dc2626; font-weight: bold;">CRITICAL ALERT: Your assigned milestone has now exceeded 50% of its total assigned duration!</p>
+                <table style="width: 100%; border-collapse: collapse; margin: 16px 0; background-color: #fef2f2; border-radius: 6px;">
+                  <tr><td style="padding: 10px; border-bottom: 1px solid #fee2e2; font-weight: bold; width: 40%;">Project No:</td><td style="padding: 10px; border-bottom: 1px solid #fee2e2;">${projectNo}</td></tr>
+                  <tr><td style="padding: 10px; border-bottom: 1px solid #fee2e2; font-weight: bold;">Company Name:</td><td style="padding: 10px; border-bottom: 1px solid #fee2e2;">${enq.companyName || '-'}</td></tr>
+                  <tr><td style="padding: 10px; border-bottom: 1px solid #fee2e2; font-weight: bold;">Client POC:</td><td style="padding: 10px; border-bottom: 1px solid #fee2e2;">${enq.clientName || '-'}</td></tr>
+                  <tr><td style="padding: 10px; border-bottom: 1px solid #fee2e2; font-weight: bold;">Milestone Name:</td><td style="padding: 10px; border-bottom: 1px solid #fee2e2; color: #dc2626; font-weight: bold;">${m.name}</td></tr>
+                  <tr><td style="padding: 10px; border-bottom: 1px solid #fee2e2; font-weight: bold;">Assigned Duration:</td><td style="padding: 10px; border-bottom: 1px solid #fee2e2;">${assignedDays} day(s)</td></tr>
+                  <tr><td style="padding: 10px; border-bottom: 1px solid #fee2e2; font-weight: bold;">Planned End Date:</td><td style="padding: 10px; border-bottom: 1px solid #fee2e2;">${m.endDate}</td></tr>
+                  <tr><td style="padding: 10px; border-bottom: 1px solid #fee2e2; font-weight: bold;">Days Overdue:</td><td style="padding: 10px; border-bottom: 1px solid #fee2e2; color: #dc2626; font-weight: bold;">${overdueDays} day(s) (>= 50% of total duration)</td></tr>
+                </table>
+                <p style="color: #dc2626; font-weight: bold;">Immediate action is required to resolve this delay.</p>
+                ${peName ? `<p style="margin-top: 20px; font-size: 0.9rem; color: #64748b;">Assigned Project Engineer: <strong>${peName}</strong> ${pePhone ? `(${pePhone})` : ''}</p>` : ''}
+              </div>
+            </div>
+          `;
+
+          await transporter.sendMail({
+            from: fromHeader,
+            to: fprEmail,
+            subject,
+            html
+          });
+          m.overdueNotice2Sent = true;
+          m.overdueNotice2SentAt = new Date();
+          enqModified = true;
+          emailsSentCount++;
+        }
+      }
+
+      if (enqModified) {
+        await enq.save();
+      }
+    }
+
+    return emailsSentCount;
+  } catch (err) {
+    console.error('Error in checkAndSendOverdueMilestoneWarnings:', err);
+    return 0;
+  }
+};
+
+router.get('/cron/overdue-warnings', async (req, res) => {
+  try {
+    const sentCount = await checkAndSendOverdueMilestoneWarnings();
+    return res.json({ message: 'Overdue milestone warning check completed', emailsSent: sentCount });
+  } catch (error) {
+    console.error('[Overdue Warnings Cron] Error:', error);
+    return res.status(500).json({ message: 'Failed to run overdue milestone check', error: error.message });
+  }
+});
+
+// Run background check every 4 hours
+setInterval(() => {
+  checkAndSendOverdueMilestoneWarnings();
+}, 4 * 60 * 60 * 1000);
+
 export default router;

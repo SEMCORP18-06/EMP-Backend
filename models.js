@@ -42,6 +42,10 @@ const enquirySchema = new mongoose.Schema({
       days: { type: Number, default: 0 },
       actualEndDate: { type: String, default: "" },
       status: { type: String, enum: ["Pending", "In Progress", "Completed"], default: "Pending" },
+      overdueNotice1Sent: { type: Boolean, default: false },
+      overdueNotice1SentAt: { type: Date },
+      overdueNotice2Sent: { type: Boolean, default: false },
+      overdueNotice2SentAt: { type: Date },
       remark: { type: String, default: "" },
       remarks: {
         type: [{
@@ -114,6 +118,10 @@ const binEnquirySchema = new mongoose.Schema({
       days: { type: Number, default: 0 },
       actualEndDate: { type: String, default: "" },
       status: { type: String, enum: ["Pending", "In Progress", "Completed"], default: "Pending" },
+      overdueNotice1Sent: { type: Boolean, default: false },
+      overdueNotice1SentAt: { type: Date },
+      overdueNotice2Sent: { type: Boolean, default: false },
+      overdueNotice2SentAt: { type: Date },
       remark: { type: String, default: "" },
       remarks: {
         type: [{
