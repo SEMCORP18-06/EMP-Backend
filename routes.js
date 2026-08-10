@@ -2137,6 +2137,65 @@ router.post('/enquiries/:id/send-custom-email', authenticateToken, requireActive
   }
 });
 
+// POST /api/send-workorder-email - Send Work Order PDF to multiple email recipients
+router.post('/send-workorder-email', authenticateToken, requireActiveRole, async (req, res) => {
+  const { to, cc, subject, message, pdfUrl, filename } = req.body;
+
+  if (!to || !to.trim()) {
+    return res.status(400).json({ message: 'Recipient email address (To) is required.' });
+  }
+  if (!subject || !subject.trim()) {
+    return res.status(400).json({ message: 'Subject is required.' });
+  }
+  if (!message || !message.trim()) {
+    return res.status(400).json({ message: 'Message content is required.' });
+  }
+
+  try {
+    const attachments = [];
+    if (pdfUrl) {
+      const fullUrl = pdfUrl.startsWith('http') ? pdfUrl : `http://localhost:8080${pdfUrl}`;
+      const response = await fetch(fullUrl).catch(() => null);
+      if (response && response.ok) {
+        const arrayBuffer = await response.arrayBuffer();
+        attachments.push({
+          filename: filename || 'WorkOrder.pdf',
+          content: Buffer.from(arrayBuffer)
+        });
+      }
+    }
+
+    const mailOptions = {
+      from: `"SEMCO Work Order Portal" <${process.env.SMTP_USER || 'aarti.j@semcogroups.com'}>`,
+      to: to.trim(),
+      cc: cc && cc.trim() ? cc.trim() : undefined,
+      subject: subject.trim(),
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; padding: 24px; border: 1px solid #e0e0e0; border-radius: 12px; background: #ffffff; color: #111827;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="color: #2E5090; margin: 0;">SEMCO Groups</h2>
+            <span style="color: #6b7280; font-size: 0.9rem;">Work Order Document</span>
+          </div>
+          <hr style="border: 0; border-top: 1px solid #eeeeee;" />
+          <div style="margin-top: 20px; white-space: pre-wrap; font-size: 1rem; line-height: 1.6;">${message}</div>
+          <br/>
+          <div style="font-size: 0.85rem; color: #6b7280; border-top: 1px solid #eeeeee; padding-top: 12px; margin-top: 20px;">
+            This email was sent from the SEMCO Work Order Portal. Please find the attached Work Order PDF document.
+          </div>
+        </div>
+      `,
+      attachments
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`[Work Order Email] Email sent successfully to "${to}" (CC: "${cc || 'none'}").`);
+    return res.json({ message: 'Work Order email sent successfully!' });
+  } catch (error) {
+    console.error('Error sending Work Order email:', error);
+    return res.status(500).json({ message: 'Failed to send Work Order email', error: error.message });
+  }
+});
+
 // TEMPORARY: SMTP diagnostic endpoint — REMOVE after debugging
 router.get('/debug/smtp-test', async (req, res) => {
   try {
