@@ -2153,7 +2153,12 @@ router.post('/send-workorder-email', authenticateToken, requireActiveRole, async
 
   try {
     const attachments = [];
-    if (pdfUrl) {
+    if (req.body.attachment && req.body.attachment.data && req.body.attachment.filename) {
+      attachments.push({
+        filename: req.body.attachment.filename,
+        content: Buffer.from(req.body.attachment.data, 'base64')
+      });
+    } else if (pdfUrl) {
       const fullUrl = pdfUrl.startsWith('http') ? pdfUrl : `http://localhost:8080${pdfUrl}`;
       const response = await fetch(fullUrl).catch(() => null);
       if (response && response.ok) {
