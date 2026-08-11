@@ -612,8 +612,15 @@ router.post('/enquiries', authenticateToken, requireActiveRole, async (req, res)
     const normalizedOfferDate = normalizeDate(offerSubmittedDate);
     const normalizedExpectedDispatchDate = normalizeDate(expectedDateOfDispatch);
 
+    let finalQuotationNumber = (quotationNumber || '').trim();
+    if (!finalQuotationNumber || finalQuotationNumber === '-') {
+      if (currentStatus === 'Quotation Submitted' || currentStatus === 'Offer submitted' || currentStatus === 'Revise Offer') {
+        finalQuotationNumber = await generateNextQuotationNumber();
+      }
+    }
+
     // Validation checks
-    if (currentStatus === 'Quotation Submitted' && (!quotationNumber || !quotationNumber.trim())) {
+    if (currentStatus === 'Quotation Submitted' && (!finalQuotationNumber || !finalQuotationNumber.trim())) {
       return res.status(400).json({ message: 'Please Enter the Quotation Number' });
     }
     if (currentStatus === 'Confirmed' && (!poNumber || !poNumber.trim())) {
@@ -624,11 +631,6 @@ router.post('/enquiries', authenticateToken, requireActiveRole, async (req, res)
     }
     if (currentStatus === 'Confirmed' && (!projectEngineer || !projectEngineer.trim() || projectEngineer === '-')) {
       return res.status(400).json({ message: 'Please select a Project Engineer' });
-    }
-
-    let finalQuotationNumber = (quotationNumber || '').trim();
-    if (!finalQuotationNumber || finalQuotationNumber === '-') {
-      finalQuotationNumber = await generateNextQuotationNumber();
     }
 
     // Check duplicates before insert
@@ -864,12 +866,21 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
     }
 
     const currentStatus = updateData.currentStatus !== undefined ? updateData.currentStatus : existing.currentStatus;
-    const quotationNumber = updateData.quotationNumber !== undefined ? updateData.quotationNumber : existing.quotationNumber;
+    let quotationNumber = updateData.quotationNumber !== undefined ? updateData.quotationNumber : existing.quotationNumber;
+    let finalQuotationNumber = (quotationNumber || '').trim();
+
+    if (!finalQuotationNumber || finalQuotationNumber === '-') {
+      if (currentStatus === 'Quotation Submitted' || currentStatus === 'Offer submitted' || currentStatus === 'Revise Offer') {
+        finalQuotationNumber = await generateNextQuotationNumber();
+        updateData.quotationNumber = finalQuotationNumber;
+      }
+    }
+
     const poNumber = updateData.poNumber !== undefined ? updateData.poNumber : existing.poNumber;
     const expectedDateOfDispatch = updateData.expectedDateOfDispatch !== undefined ? updateData.expectedDateOfDispatch : existing.expectedDateOfDispatch;
     const projectEngineer = updateData.projectEngineer !== undefined ? updateData.projectEngineer : existing.projectEngineer;
 
-    if (currentStatus === 'Quotation Submitted' && (!quotationNumber || !quotationNumber.trim())) {
+    if (currentStatus === 'Quotation Submitted' && (!finalQuotationNumber || !finalQuotationNumber.trim())) {
       return res.status(400).json({ message: 'Please Enter the Quotation Number' });
     }
     if (currentStatus === 'Confirmed' && (!poNumber || !poNumber.trim())) {
