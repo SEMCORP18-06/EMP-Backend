@@ -536,28 +536,36 @@ router.get('/enquiries', authenticateToken, requireActiveRole, async (req, res) 
 });
 
 const generateNextQuotationNumber = async (targetYear) => {
-  const year = targetYear || new Date().getFullYear();
-  const enquiries = await Enquiry.find({}, 'quotationNumber');
-  let maxSeq = 0;
+  try {
+    const year = targetYear || new Date().getFullYear();
+    const enquiries = await Enquiry.find({}).sort({ createdAt: -1 });
+    let maxSeq = 0;
 
-  enquiries.forEach(e => {
-    if (!e.quotationNumber) return;
-    const cleanStr = e.quotationNumber.trim();
-    const match = cleanStr.match(/^(?:QTN-)?(\d{4})[:\-_](\d+)/i);
-    if (match) {
-      const y = parseInt(match[1], 10);
-      const seq = parseInt(match[2], 10);
-      if (y === year && !isNaN(seq)) {
-        if (seq > maxSeq && seq !== (y % 100 + 1)) {
-          maxSeq = seq;
+    if (Array.isArray(enquiries)) {
+      enquiries.forEach(e => {
+        if (!e || !e.quotationNumber || typeof e.quotationNumber !== 'string') return;
+        const cleanStr = e.quotationNumber.trim();
+        const match = cleanStr.match(/^(?:QTN-)?(\d{4})[:\-_](\d+)/i);
+        if (match) {
+          const y = parseInt(match[1], 10);
+          const seq = parseInt(match[2], 10);
+          if (y === year && !isNaN(seq)) {
+            if (seq > maxSeq && seq !== (y % 100 + 1)) {
+              maxSeq = seq;
+            }
+          }
         }
-      }
+      });
     }
-  });
 
-  const nextSeq = maxSeq > 0 ? maxSeq + 1 : 1;
-  const formattedSeq = nextSeq < 10 ? `0${nextSeq}` : `${nextSeq}`;
-  return `${year}:${formattedSeq}:00`;
+    const nextSeq = maxSeq > 0 ? maxSeq + 1 : 1;
+    const formattedSeq = nextSeq < 10 ? `0${nextSeq}` : `${nextSeq}`;
+    return `${year}:${formattedSeq}:00`;
+  } catch (err) {
+    console.error('Error generating next quotation number:', err);
+    const fallbackYear = targetYear || new Date().getFullYear();
+    return `${fallbackYear}:01:00`;
+  }
 };
 
 // GET next auto-incremented quotation number for current year
