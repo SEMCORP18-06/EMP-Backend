@@ -535,6 +535,43 @@ router.get('/enquiries', authenticateToken, requireActiveRole, async (req, res) 
   }
 });
 
+const generateNextQuotationNumber = async (targetYear) => {
+  const year = targetYear || new Date().getFullYear();
+  const enquiries = await Enquiry.find({}, 'quotationNumber');
+  let maxSeq = 0;
+
+  enquiries.forEach(e => {
+    if (!e.quotationNumber) return;
+    const cleanStr = e.quotationNumber.trim();
+    const match = cleanStr.match(/^(?:QTN-)?(\d{4})[:\-_](\d+)/i);
+    if (match) {
+      const y = parseInt(match[1], 10);
+      const seq = parseInt(match[2], 10);
+      if (y === year && !isNaN(seq)) {
+        if (seq > maxSeq && seq !== (y % 100 + 1)) {
+          maxSeq = seq;
+        }
+      }
+    }
+  });
+
+  const nextSeq = maxSeq > 0 ? maxSeq + 1 : 1;
+  const formattedSeq = nextSeq < 10 ? `0${nextSeq}` : `${nextSeq}`;
+  return `${year}:${formattedSeq}:00`;
+};
+
+// GET next auto-incremented quotation number for current year
+router.get('/next-quotation-number', authenticateToken, requireActiveRole, async (req, res) => {
+  try {
+    const yearParam = req.query.year ? parseInt(req.query.year, 10) : undefined;
+    const nextQuotationNumber = await generateNextQuotationNumber(yearParam);
+    return res.json({ nextQuotationNumber });
+  } catch (error) {
+    console.error('Error generating next quotation number:', error);
+    return res.status(500).json({ message: 'Error generating quotation number' });
+  }
+});
+
 // POST new enquiry - Admin and General
 router.post('/enquiries', authenticateToken, requireActiveRole, async (req, res) => {
   try {
@@ -581,11 +618,16 @@ router.post('/enquiries', authenticateToken, requireActiveRole, async (req, res)
       return res.status(400).json({ message: 'Please select a Project Engineer' });
     }
 
+    let finalQuotationNumber = (quotationNumber || '').trim();
+    if (!finalQuotationNumber || finalQuotationNumber === '-') {
+      finalQuotationNumber = await generateNextQuotationNumber();
+    }
+
     // Check duplicates before insert
     let duplicateList = [];
-    if (quotationNumber && quotationNumber.trim()) {
+    if (finalQuotationNumber && finalQuotationNumber.trim()) {
       duplicateList = await Enquiry.find({ 
-        quotationNumber: { $regex: `^${quotationNumber.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' } 
+        quotationNumber: { $regex: `^${finalQuotationNumber.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' } 
       }).sort({ createdAt: -1 });
     }
     if (duplicateList.length === 0) {
@@ -607,7 +649,7 @@ router.post('/enquiries', authenticateToken, requireActiveRole, async (req, res)
 
     const savedEnquiry = await Enquiry.create({
       date: normalizedDate,
-      quotationNumber: quotationNumber || '',
+      quotationNumber: finalQuotationNumber,
       clientName,
       companyName,
       enquiryDetails,
