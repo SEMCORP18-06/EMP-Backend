@@ -136,32 +136,7 @@ const ensureMilestonePercentages = (milestones) => {
 
 const userHasEnquiryAccess = async (user, enquiry) => {
   if (!user) return false;
-  if (user.role === 'Admin') return true;
-  if (enquiry && enquiry.currentStatus === 'Confirmed') return true;
-  if (enquiry && enquiry.createdBy === user.username) return true;
-  
-  if (enquiry.projectEngineer && enquiry.projectEngineer !== '-') {
-    const pe = await ProjectEngineer.findOne({
-      email: { $regex: `^${user.username.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' }
-    });
-    if (pe && pe.name.trim().toLowerCase() === enquiry.projectEngineer.trim().toLowerCase()) {
-      return true;
-    }
-  }
-
-  if (enquiry.milestones && Array.isArray(enquiry.milestones) && enquiry.milestones.length > 0) {
-    const fpr = await Fpr.findOne({
-      email: { $regex: `^${user.username.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' }
-    });
-    if (fpr && fpr.name) {
-      const fprNameNormalized = fpr.name.trim().toLowerCase();
-      const hasFprMilestone = enquiry.milestones.some(m => m.fpr && m.fpr.trim().toLowerCase() === fprNameNormalized);
-      if (hasFprMilestone) {
-        return true;
-      }
-    }
-  }
-
+  if (user.role === 'Admin' || user.role === 'General') return true;
   return false;
 };
 
