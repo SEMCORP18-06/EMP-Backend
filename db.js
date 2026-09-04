@@ -688,6 +688,15 @@ export function isDuplicate(enq1, enq2) {
   const eqKey2 = getEquipKey(enq2.majorEquipments);
   if (eqKey1 !== eqKey2) return false;
 
+  // 6. Enquiry Details (case-insensitive, trimmed, normalized whitespace)
+  const normalizeDetails = (str) => {
+    const s = (str || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    return s === '-' ? '' : s;
+  };
+  const details1 = normalizeDetails(enq1.enquiryDetails || enq1.enqDetails);
+  const details2 = normalizeDetails(enq2.enquiryDetails || enq2.enqDetails);
+  if (details1 !== details2) return false;
+
   return true;
 }
 

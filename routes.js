@@ -621,7 +621,7 @@ router.post('/enquiries', authenticateToken, requireActiveRole, async (req, res)
         clientName: { $regex: `^${clientName.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, $options: 'i' }
       }).sort({ createdAt: -1 });
 
-      const newEnqObj = { clientName, companyName, contactNumber, mailId, majorEquipments };
+      const newEnqObj = { clientName, companyName, contactNumber, mailId, majorEquipments, enquiryDetails };
       const matched = potential.find(p => isDuplicate(p, newEnqObj));
       if (matched) {
         duplicateList = [matched];
@@ -875,6 +875,7 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
     const targetContactNumber = updateData.contactNumber !== undefined ? updateData.contactNumber : existing.contactNumber;
     const targetMailId = updateData.mailId !== undefined ? updateData.mailId : existing.mailId;
     const targetMajorEquipments = updateData.majorEquipments !== undefined ? updateData.majorEquipments : existing.majorEquipments;
+    const targetEnquiryDetails = updateData.enquiryDetails !== undefined ? updateData.enquiryDetails : existing.enquiryDetails;
 
     let updateDuplicateList = [];
     if (targetQuotation && targetQuotation.trim()) {
@@ -895,7 +896,8 @@ router.put('/enquiries/:id', authenticateToken, requireActiveRole, async (req, r
         companyName: targetCompanyName, 
         contactNumber: targetContactNumber, 
         mailId: targetMailId, 
-        majorEquipments: targetMajorEquipments 
+        majorEquipments: targetMajorEquipments,
+        enquiryDetails: targetEnquiryDetails 
       };
       const matched = potential.find(p => isDuplicate(p, newEnqObj));
       if (matched) {
